@@ -10,13 +10,20 @@ CREATE TABLE IF NOT EXISTS screenshots (
     file_path TEXT NOT NULL UNIQUE,
     label TEXT
 );
+
+CREATE TABLE IF NOT EXISTS agent_status (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    checked_at TEXT NOT NULL,
+    status TEXT NOT NULL,
+    detail TEXT
+);
 """
 
 
 def get_connection(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
-    conn.execute(SCHEMA)
+    conn.executescript(SCHEMA)
     return conn
 
 
@@ -30,5 +37,13 @@ def insert_screenshot(
     conn.execute(
         "INSERT INTO screenshots (captured_at, monitor_index, window_title, file_path) VALUES (?, ?, ?, ?)",
         (captured_at, monitor_index, window_title, file_path),
+    )
+    conn.commit()
+
+
+def insert_agent_unreachable(conn: sqlite3.Connection, checked_at: str, detail: str) -> None:
+    conn.execute(
+        "INSERT INTO agent_status (checked_at, status, detail) VALUES (?, 'unreachable', ?)",
+        (checked_at, detail),
     )
     conn.commit()

@@ -2,8 +2,10 @@ import base64
 import logging
 from datetime import datetime, timezone
 
+import requests
+
 from server.config import load_config
-from server.db import get_connection, insert_screenshot
+from server.db import get_connection, insert_agent_unreachable, insert_screenshot
 from server.fetch import fetch_screenshot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -17,7 +19,17 @@ def run() -> None:
     systemd timer) every 10-15 minutes rather than looping internally.
     """
     config = load_config()
-    payload = fetch_screenshot(config.agent_url, config.agent_api_key)
+
+    try:
+        payload = fetch_screenshot(config.agent_url, config.agent_api_key)
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+        logger.warning("Windows agent unreachable: %s", exc)
+        conn = get_connection(config.db_path)
+        try:
+            insert_agent_unreachable(conn, datetime.now(timezone.utc).isoformat(), str(exc))
+        finally:
+            conn.close()
+        return
 
     captured_at_raw = payload.get("captured_at")
     captured_dt = datetime.fromisoformat(captured_at_raw) if captured_at_raw else datetime.now(timezone.utc)

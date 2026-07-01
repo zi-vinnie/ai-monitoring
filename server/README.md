@@ -13,7 +13,7 @@ Each run of `poll-screenshots`:
 3. Saves it to `SCREENSHOT_DIR/<YYYY-MM-DD>/<timestamp>_monitor<N>.png`.
 4. Inserts a row into the `screenshots` table in the SQLite database at `DB_PATH`, recording the capture time, monitor index, focused window title, and file path.
 
-See [`windows_agent`'s `/screenshot` contract](../CLAUDE.md#windows-agent-screenshot-contract) for the exact response shape. If that contract ever changes, `server/src/server/fetch.py` and `server/src/server/poll.py` need to change with it.
+See `windows_agent`['s](../CLAUDE.md#windows-agent-screenshot-contract) `/screenshot` [contract](../CLAUDE.md#windows-agent-screenshot-contract) for the exact response shape. If that contract ever changes, `server/src/server/fetch.py` and `server/src/server/poll.py` need to change with it.
 
 Image retention (auto-deleting old screenshots while keeping labels) is not yet implemented.
 
@@ -23,6 +23,8 @@ Image retention (auto-deleting old screenshots while keeping labels) is not yet 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
 - Network access to the Windows agent's `/screenshot` endpoint
+
+
 
 ## Installation
 
@@ -37,21 +39,19 @@ This creates a `.venv` and installs the project along with its dependencies (`re
 ## Setup
 
 1. Copy the example env file and fill in your values:
-
-   ```bash
+  ```bash
    cp .env.example .env
-   ```
-
+  ```
 2. Edit `.env`:
-
-   ```
+  ```
    AGENT_URL=http://192.168.1.50:8000   # the Windows agent's address
    AGENT_API_KEY=changeme               # must match the agent's configured API key
    SCREENSHOT_DIR=data/screenshots      # where PNGs are saved
    DB_PATH=data/metadata.sqlite3        # where the SQLite metadata db lives
-   ```
-
+  ```
    `SCREENSHOT_DIR` and `DB_PATH` are created automatically on first run if they don't exist.
+
+
 
 ## Running
 
@@ -107,6 +107,8 @@ Then enable it:
 sudo systemctl enable --now poll-screenshots.timer
 ```
 
+
+
 ## Data layout
 
 ```
@@ -119,14 +121,18 @@ data/
 
 The `screenshots` table (`server/src/server/db.py`):
 
-| column         | type    | notes                              |
-|----------------|---------|-------------------------------------|
-| id             | INTEGER | primary key                        |
-| captured_at    | TEXT    | ISO 8601 timestamp from the agent  |
-| monitor_index  | INTEGER | which monitor was captured         |
-| window_title   | TEXT    | nullable, focused window title     |
-| file_path      | TEXT    | path to the saved PNG              |
-| label          | TEXT    | nullable, filled in by `classifier`|
+
+| column        | type    | notes                               |
+| ------------- | ------- | ----------------------------------- |
+| id            | INTEGER | primary key                         |
+| captured_at   | TEXT    | ISO 8601 timestamp from the agent   |
+| monitor_index | INTEGER | which monitor was captured          |
+| window_title  | TEXT    | nullable, focused window title      |
+| file_path     | TEXT    | path to the saved PNG               |
+| label         | TEXT    | nullable, filled in by `classifier` |
+
+
+
 
 ## Project structure
 
@@ -141,7 +147,10 @@ server/
   pyproject.toml
 ```
 
+
+
 ## Security
 
 - `AGENT_API_KEY` authenticates to the Windows agent — keep `.env` out of version control (already gitignored) and never log its value.
 - This tool is intended strictly for authorized monitoring of a household device you own or administer, with the awareness of the device's user where required. See the top-level [CLAUDE.md](../CLAUDE.md#security) for the full policy.
+
