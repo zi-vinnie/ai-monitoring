@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -10,7 +11,7 @@ app = FastAPI()
 
 def require_api_key(x_api_key: str = Header(...)) -> None:
     config = load_config()
-    if x_api_key != config.api_key:
+    if not secrets.compare_digest(x_api_key, config.api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 

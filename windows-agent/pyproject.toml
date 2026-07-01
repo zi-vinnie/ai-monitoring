@@ -1,11 +1,8 @@
 [project]
 name = "windows-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "API-key-protected FastAPI service that captures the active monitor's screenshot on a monitored Windows machine"
 readme = "README.md"
-authors = [
-    { name = "Josiah Burden", email = "josiahburden19@gmail.com" }
-]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.138.2",
