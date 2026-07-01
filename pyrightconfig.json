@@ -1,0 +1,20 @@
+{
+  "executionEnvironments": [
+    {
+      "root": "server",
+      "extraPaths": [
+        "server/src",
+        "server/.venv/lib/python3.12/site-packages",
+        "server/.venv/lib64/python3.12/site-packages"
+      ]
+    },
+    {
+      "root": "windows-agent",
+      "extraPaths": [
+        "windows-agent/src",
+        "windows-agent/.venv/lib/python3.12/site-packages",
+        "windows-agent/.venv/lib64/python3.12/site-packages"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+[project]
+name = "windows-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Josiah Burden", email = "josiahburden19@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.138.2",
+    "mss>=10.2.0",
+    "python-dotenv>=1.2.2",
+    "pywin32>=312 ; sys_platform == 'win32'",
+    "uvicorn[standard]>=0.49.0",
+]
+
+[project.scripts]
+windows-agent = "windows_agent.main:run"
+
+[build-system]
+requires = ["uv_build>=0.11.26,<0.12.0"]
+build-backend = "uv_build"
