@@ -34,6 +34,8 @@ def capture_active_monitor() -> dict:
         monitor = sct.monitors[monitor_index]
         shot = sct.grab(monitor)
         png_bytes = mss.tools.to_png(shot.rgb, shot.size)
+        if png_bytes is None:
+            raise RuntimeError("mss.tools.to_png returned no data")
 
     return {
         "monitor_index": monitor_index,
