@@ -10,16 +10,24 @@ def match_monitor_index(rect: tuple[int, int, int, int], monitors: list[dict]) -
     """Match a win32 monitor rect to its index in mss's monitor list.
 
     mss.monitors[0] is the combined virtual screen spanning all monitors, so
-    real monitors start at index 1.
+    real monitors start at index 1. Rather than requiring the win32 and mss
+    rects to be exactly equal (which breaks under display scaling and pixel
+    rounding), pick the mss monitor whose rect overlaps the win32 rect the most.
     """
     left, top, right, bottom = rect
-    width, height = right - left, bottom - top
-    for index, monitor in enumerate(monitors):
-        if index == 0:
-            continue
-        if (monitor["left"], monitor["top"], monitor["width"], monitor["height"]) == (left, top, width, height):
-            return index
-    raise RuntimeError("Could not match the active window's monitor to an mss monitor")
+    best_index, best_overlap = None, 0
+    for index in range(1, len(monitors)):
+        monitor = monitors[index]
+        m_left, m_top = monitor["left"], monitor["top"]
+        m_right, m_bottom = m_left + monitor["width"], m_top + monitor["height"]
+        overlap_w = max(0, min(right, m_right) - max(left, m_left))
+        overlap_h = max(0, min(bottom, m_bottom) - max(top, m_top))
+        overlap = overlap_w * overlap_h
+        if overlap > best_overlap:
+            best_index, best_overlap = index, overlap
+    if best_index is None:
+        raise RuntimeError("Could not match the active window's monitor to an mss monitor")
+    return best_index
 
 
 def capture_active_monitor() -> dict:

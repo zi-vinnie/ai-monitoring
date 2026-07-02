@@ -1,12 +1,22 @@
 import secrets
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
+from windows_agent.active_monitor import set_dpi_awareness
 from windows_agent.capture import capture_active_monitor
 from windows_agent.config import load_config
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Align win32 and mss monitor coordinates before the first capture.
+    set_dpi_awareness()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 def require_api_key(x_api_key: str = Header(...)) -> None:
