@@ -80,14 +80,31 @@ This starts the FastAPI app under uvicorn on `0.0.0.0:8000`. Test it from the ma
 curl.exe -H "X-API-Key: changeme" http://127.0.0.1:8000/screenshot
 ```
 
+To verify the returned image is a real, complete screenshot (rather than eyeballing the JSON), decode it with Python — avoid Windows PowerShell's `ConvertFrom-Json`, which can truncate the long base64 string and produce a "corrupted" PNG:
+
+```powershell
+curl.exe -s -H "X-API-Key: changeme" http://127.0.0.1:8000/screenshot -o shot.json
+uv run python -c "import json,base64; d=json.load(open('shot.json')); b=base64.b64decode(d['png_base64']); open('shot.png','wb').write(b); print('bytes:', len(b), 'monitor:', d['monitor_index'], 'title:', d['window_title'])"
+start shot.png
+```
+
 ### Running hidden / as a background service
 
-The agent is meant to run hidden on the monitored machine rather than as a visible console window. Options:
+The agent is meant to run hidden on the monitored machine rather than as a visible console window, and to start automatically so the server's polling doesn't silently fail after a reboot.
 
-- **Task Scheduler**: create a task that runs `uv run windows-agent` (or the equivalent `.venv\Scripts\windows-agent.exe`) at logon, with "Run whether user is logged on or not" and no visible window.
-- **NSSM** ([nssm.cc](https://nssm.cc)) or similar: wrap it as a proper Windows service.
+**Important — it must run in the logged-on user's interactive session.** Screen capture only works from an interactive desktop. A background *service* (NSSM, or Task Scheduler's "Run whether user is logged on or not") runs in **session 0**, which has no visible desktop, so `mss` there captures **black frames** or fails outright. Don't use NSSM/session-0 for this. Instead run it via Task Scheduler triggered at the monitored user's logon, in their session — capturing their screen while they use it (there's nothing meaningful to capture when they're logged out).
 
-Whichever method you use, make sure it starts automatically on boot/logon so the server's polling doesn't silently start failing after a restart.
+**Import the provided task** ([`windows-agent-task.xml`](./windows-agent-task.xml)) — it's preconfigured for all of the above (logon trigger, runs as the logged-on user, hidden, no console window, no execution time limit, restart-on-failure). From an elevated PowerShell:
+
+```powershell
+schtasks /Create /TN "windows-agent" /XML "C:\ProgramData\ai-monitoring\windows-agent\windows-agent-task.xml" /F
+```
+
+Or in the Task Scheduler GUI: **Action → Import Task…** and select the XML.
+
+The task's Action uses `.venv\Scripts\pythonw.exe -m windows_agent.main` (`pythonw`, so no console window ever appears) with the **working directory set to the project folder** — this matters because `config.py` calls `load_dotenv()`, which looks for `.env` relative to the working directory. If you cloned somewhere other than `C:\ProgramData\ai-monitoring`, edit the three paths in the XML (`<Command>`, `<WorkingDirectory>`) before importing.
+
+To verify: after importing, log off and back on (or right-click the task → **Run**), then hit `/screenshot` from the server — you should get JSON back with no visible window on the monitored machine.
 
 ## Security
 

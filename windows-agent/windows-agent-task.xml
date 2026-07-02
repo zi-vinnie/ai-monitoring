@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>ai-monitoring windows-agent: runs the /screenshot FastAPI service hidden, in the logged-on user's interactive session (required for screen capture), starting at logon.</Description>
+    <URI>\windows-agent</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <!-- S-1-5-32-545 = the built-in Users group: run as (and only when) the
+           logged-on user, in their interactive session, no stored password. -->
+      <GroupId>S-1-5-32-545</GroupId>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>true</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <!-- PT0S = no execution time limit; this is a long-running server. -->
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <!-- pythonw.exe (not python.exe) => no console window ever appears.
+           WorkingDirectory must be the project dir so config.py's load_dotenv()
+           finds .env. Edit all three paths if you cloned somewhere other than
+           C:\ProgramData\ai-monitoring. -->
+      <Command>C:\ProgramData\ai-monitoring\windows-agent\.venv\Scripts\pythonw.exe</Command>
+      <Arguments>-m windows_agent.main</Arguments>
+      <WorkingDirectory>C:\ProgramData\ai-monitoring\windows-agent</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
