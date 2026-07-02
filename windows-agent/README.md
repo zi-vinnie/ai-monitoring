@@ -102,7 +102,7 @@ schtasks /Create /TN "windows-agent" /XML "C:\ProgramData\ai-monitoring\windows-
 
 Or in the Task Scheduler GUI: **Action → Import Task…** and select the XML.
 
-The task's Action uses `.venv\Scripts\pythonw.exe -m windows_agent.main` (`pythonw`, so no console window ever appears) with the **working directory set to the project folder** — this matters because `config.py` calls `load_dotenv()`, which looks for `.env` relative to the working directory. If you cloned somewhere other than `C:\ProgramData\ai-monitoring`, edit the three paths in the XML (`<Command>`, `<WorkingDirectory>`) before importing.
+The task's Action runs `wscript.exe run-hidden.vbs` ([`run-hidden.vbs`](./run-hidden.vbs)), which launches the agent with **no visible window**. This indirection is necessary: pointing the task straight at `.venv\Scripts\pythonw.exe` still pops a console window, because a uv virtualenv's `pythonw.exe` is a trampoline that re-launches uv's *console* base `python.exe`, and that child is handed its own new console. `run-hidden.vbs` instead launches the console `python.exe` with a hidden window (window style 0), and the hidden console is inherited down the whole chain. The VBS sets its working directory to the project folder so `config.py`'s `load_dotenv()` finds `.env`. If you cloned somewhere other than `C:\ProgramData\ai-monitoring`, edit the paths in **both** `run-hidden.vbs` and the XML's `<WorkingDirectory>`.
 
 To verify: after importing, log off and back on (or right-click the task → **Run**), then hit `/screenshot` from the server — you should get JSON back with no visible window on the monitored machine.
 
