@@ -41,9 +41,13 @@ def insert_screenshot(
     conn.commit()
 
 
-def insert_agent_unreachable(conn: sqlite3.Connection, checked_at: str, detail: str) -> None:
+def insert_agent_status(conn: sqlite3.Connection, checked_at: str, status: str, detail: str) -> None:
     conn.execute(
-        "INSERT INTO agent_status (checked_at, status, detail) VALUES (?, 'unreachable', ?)",
-        (checked_at, detail),
+        "INSERT INTO agent_status (checked_at, status, detail) VALUES (?, ?, ?)",
+        (checked_at, status, detail),
     )
     conn.commit()
+
+
+def insert_agent_unreachable(conn: sqlite3.Connection, checked_at: str, detail: str) -> None:
+    insert_agent_status(conn, checked_at, "unreachable", detail)

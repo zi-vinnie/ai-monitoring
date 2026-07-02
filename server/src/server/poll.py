@@ -4,12 +4,20 @@ from datetime import datetime, timezone
 
 import requests
 
-from server.config import load_config
-from server.db import get_connection, insert_agent_unreachable, insert_screenshot
+from server.config import Config, load_config
+from server.db import get_connection, insert_agent_status, insert_screenshot
 from server.fetch import fetch_screenshot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _record_status(config: Config, status: str, detail: str) -> None:
+    conn = get_connection(config.db_path)
+    try:
+        insert_agent_status(conn, datetime.now(timezone.utc).isoformat(), status, detail)
+    finally:
+        conn.close()
 
 
 def run() -> None:
@@ -23,12 +31,16 @@ def run() -> None:
     try:
         payload = fetch_screenshot(config.agent_url, config.agent_api_key)
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+        # Laptop off/asleep or firewalled: an expected, routine condition.
         logger.warning("Windows agent unreachable: %s", exc)
-        conn = get_connection(config.db_path)
-        try:
-            insert_agent_unreachable(conn, datetime.now(timezone.utc).isoformat(), str(exc))
-        finally:
-            conn.close()
+        _record_status(config, "unreachable", str(exc))
+        return
+    except requests.exceptions.RequestException as exc:
+        # Reachable but the request failed, e.g. the agent returned 500 because
+        # capture raised (locked/off screen), or 401 for a bad API key. Don't
+        # crash a scheduled run over it — log and record, then exit cleanly.
+        logger.warning("Windows agent request failed: %s", exc)
+        _record_status(config, "error", str(exc))
         return
 
     captured_at_raw = payload.get("captured_at")
