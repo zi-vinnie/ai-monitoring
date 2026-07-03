@@ -11,6 +11,7 @@ On each `GET /screenshot` request (authenticated via `X-API-Key`):
 1. Finds the foreground window and the monitor it's on (`win32gui.GetForegroundWindow` + `win32api.MonitorFromWindow`).
 2. Matches that monitor to its index in `mss`'s monitor list.
 3. Captures just that monitor and encodes it as PNG/base64.
+   - If the `mss` (GDI) capture comes back black — which is what happens for **exclusive-fullscreen games** like Rocket League, since they bypass the desktop compositor — the agent re-captures that monitor via the **Desktop Duplication API** (`dxcam`), which can read the GPU output directly. Normal desktop captures never hit this path. If `dxcam` is unavailable or fails, the original (black) frame is kept, so behaviour never regresses.
 4. Returns:
 
    ```json
@@ -40,7 +41,7 @@ From the `windows-agent/` directory:
 uv sync
 ```
 
-This creates a `.venv` and installs `fastapi`, `mss`, `uvicorn`, `python-dotenv`, and (on Windows) `pywin32`.
+This creates a `.venv` and installs `fastapi`, `mss`, `uvicorn`, `python-dotenv`, and (on Windows) `pywin32` and `dxcam` (the latter for the fullscreen-game capture fallback).
 
 ## Setup
 
@@ -102,9 +103,23 @@ schtasks /Create /TN "windows-agent" /XML "C:\ProgramData\ai-monitoring\windows-
 
 Or in the Task Scheduler GUI: **Action → Import Task…** and select the XML.
 
-The task's Action runs `wscript.exe run-hidden.vbs` ([`run-hidden.vbs`](./run-hidden.vbs)), which launches the agent with **no visible window**. This indirection is necessary: pointing the task straight at `.venv\Scripts\pythonw.exe` still pops a console window, because a uv virtualenv's `pythonw.exe` is a trampoline that re-launches uv's *console* base `python.exe`, and that child is handed its own new console. `run-hidden.vbs` instead launches the console `python.exe` with a hidden window (window style 0), and the hidden console is inherited down the whole chain. The VBS sets its working directory to the project folder so `config.py`'s `load_dotenv()` finds `.env`. If you cloned somewhere other than `C:\ProgramData\ai-monitoring`, edit the paths in **both** `run-hidden.vbs` and the XML's `<WorkingDirectory>`.
+The task's Action runs `wscript.exe run-hidden.vbs` ([`run-hidden.vbs`](./run-hidden.vbs)), which runs everything with **no visible window**. `run-hidden.vbs` launches [`update-and-run.cmd`](./update-and-run.cmd) with a hidden window (window style 0); that hidden console is inherited by every child process, so nothing appears on screen. This indirection is necessary: pointing the task straight at `.venv\Scripts\pythonw.exe` still pops a console window, because a uv virtualenv's `pythonw.exe` is a trampoline that re-launches uv's *console* base `python.exe`, and that child is handed its own new console; git and uv would flash consoles too. The VBS sets its working directory to the project folder so `config.py`'s `load_dotenv()` finds `.env`. If you cloned somewhere other than `C:\ProgramData\ai-monitoring`, edit the paths in **both** `run-hidden.vbs` and the XML's `<WorkingDirectory>`.
 
-To verify: after importing, log off and back on (or right-click the task → **Run**), then hit `/screenshot` from the server — you should get JSON back with no visible window on the monitored machine.
+### Auto-update at logon
+
+`update-and-run.cmd` self-updates the agent on every logon, before starting it:
+
+1. `git pull --ff-only` in the repo root (picks up new code).
+2. `uv sync` (installs any new/changed dependencies).
+3. Starts the agent (`python -m windows_agent.main`).
+
+Steps 1–2 are best-effort: if the box is offline or the branch has diverged, the script logs a note and starts the agent anyway, so a bad pull never leaves the machine unmonitored. Output goes to `windows-agent\update.log` (truncated each logon, so it can't grow without bound).
+
+**Does this need to stop the running agent first? No — not in the logon flow.** The task is *"run only when the user is logged on"*, so the previous instance is already terminated at logoff; at the next logon nothing holds the `.venv`'s `python.exe`/`.pyd` files, and `uv sync` can safely replace them. That's also *why* the update runs before the agent starts. The one case that **does** require stopping first is updating a **currently running** agent mid-session (Windows locks the running executable, so `uv sync` couldn't replace it) — just **restart the task** (Task Scheduler → right-click → **End**, then **Run**), which re-runs the pull/sync/start sequence cleanly.
+
+Prerequisites: `git` and `uv` must be on the logged-on user's `PATH` (they are after a normal `uv` install), and the clone must be able to `git pull` **non-interactively** — i.e. a public repo over HTTPS, or credentials already cached by a Git credential helper. Note the security implication: anyone who can push to this repo gets code execution on the monitored machine at its next logon.
+
+To verify: after importing, log off and back on (or right-click the task → **Run**), then hit `/screenshot` from the server — you should get JSON back with no visible window on the monitored machine. Check `windows-agent\update.log` to confirm the pull/sync ran.
 
 ## Security
 
