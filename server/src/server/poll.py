@@ -6,6 +6,7 @@ import requests
 
 from server.config import Config, load_config
 from server.db import get_connection, insert_agent_status, insert_screenshot
+from server.diagnostics import diagnose_unreachable
 from server.fetch import fetch_screenshot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -31,16 +32,28 @@ def run() -> None:
     try:
         payload = fetch_screenshot(config.agent_url, config.agent_api_key)
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
-        # Laptop off/asleep or firewalled: an expected, routine condition.
-        logger.warning("Windows agent unreachable: %s", exc)
-        _record_status(config, "unreachable", str(exc))
+        # No HTTP response at all (laptop off/asleep, agent stopped, Wi-Fi down).
+        # All routine — probe the network with ICMP to record *which* one it was
+        # instead of a bare "unreachable".
+        status, detail = diagnose_unreachable(config.agent_url, config.router_ip)
+        logger.warning("Windows agent unreachable (%s): %s [%s]", status, detail, exc)
+        _record_status(config, status, detail)
         return
     except requests.exceptions.RequestException as exc:
-        # Reachable but the request failed, e.g. the agent returned 500 because
-        # capture raised (locked/off screen), or 401 for a bad API key. Don't
-        # crash a scheduled run over it — log and record, then exit cleanly.
-        logger.warning("Windows agent request failed: %s", exc)
-        _record_status(config, "error", str(exc))
+        # We got an HTTP response but it wasn't a success, so the machine and
+        # agent are reachable — the problem is at the application layer. A 401/403
+        # means the API key was rejected (a permissions issue, not an outage);
+        # anything else (e.g. 500 when capture raised on a locked screen) is a
+        # generic error. Either way, don't crash a scheduled run — record and exit.
+        response = getattr(exc, "response", None)
+        code = getattr(response, "status_code", None)
+        if code in (401, 403):
+            detail = f"HTTP {code}: agent reachable but rejected the API key (permissions)"
+            logger.warning("Windows agent %s", detail)
+            _record_status(config, "unauthorized", detail)
+        else:
+            logger.warning("Windows agent request failed: %s", exc)
+            _record_status(config, "error", str(exc))
         return
 
     captured_at_raw = payload.get("captured_at")

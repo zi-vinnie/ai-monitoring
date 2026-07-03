@@ -24,6 +24,9 @@ class Config:
     agent_api_key: str
     screenshot_dir: Path
     db_path: Path
+    # Optional LAN gateway/router IP. When set, an unreachable agent is probed
+    # against it to tell "Wi-Fi/router down" apart from "machine off".
+    router_ip: str | None
 
 
 def load_config() -> Config:
@@ -32,4 +35,5 @@ def load_config() -> Config:
         agent_api_key=os.environ["AGENT_API_KEY"],
         screenshot_dir=_resolve_path(os.environ.get("SCREENSHOT_DIR", "data/screenshots")),
         db_path=_resolve_path(os.environ.get("DB_PATH", "data/metadata.sqlite3")),
+        router_ip=os.environ.get("ROUTER_IP") or None,
     )
