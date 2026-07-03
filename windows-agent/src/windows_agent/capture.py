@@ -3,7 +3,12 @@ import base64
 import mss
 import mss.tools
 
-from windows_agent.active_monitor import get_active_monitor_rect, get_active_window_title
+from windows_agent.active_monitor import (
+    get_active_monitor_handle,
+    get_active_monitor_rect,
+    get_active_window_title,
+)
+from windows_agent.capture_dxgi import capture_monitor_png
 
 
 def match_monitor_index(rect: tuple[int, int, int, int], monitors: list[dict]) -> int:
@@ -30,6 +35,24 @@ def match_monitor_index(rect: tuple[int, int, int, int], monitors: list[dict]) -
     return best_index
 
 
+def is_mostly_black(rgb: bytes, threshold: int = 10, sample_stride: int = 997) -> bool:
+    """Heuristic: does this RGB buffer look like an all-black frame?
+
+    GDI/mss capture of an exclusive-fullscreen game returns a pure-black
+    (all-zero) frame. A genuinely rendered frame — even a dark one — has some
+    pixels above the threshold, so a low threshold avoids false positives on
+    dark-but-real screens. We sample bytes with a prime stride (rather than
+    scanning millions of bytes) to keep this cheap. Returns False for an empty
+    buffer (nothing to fall back for).
+    """
+    if not rgb:
+        return False
+    for i in range(0, len(rgb), sample_stride):
+        if rgb[i] > threshold:
+            return False
+    return True
+
+
 def capture_active_monitor() -> dict:
     """Capture whichever monitor currently holds the focused window.
 
@@ -41,9 +64,17 @@ def capture_active_monitor() -> dict:
         monitor_index = match_monitor_index(rect, sct.monitors) if rect is not None else 1
         monitor = sct.monitors[monitor_index]
         shot = sct.grab(monitor)
-        png_bytes = mss.tools.to_png(shot.rgb, shot.size)
+        rgb = shot.rgb
+        png_bytes = mss.tools.to_png(rgb, shot.size)
         if png_bytes is None:
             raise RuntimeError("mss.tools.to_png returned no data")
+
+    # mss/GDI can't see exclusive-fullscreen games and returns a black frame;
+    # retry those via the Desktop Duplication API, which can capture them.
+    if is_mostly_black(rgb):
+        dxgi_png = capture_monitor_png(get_active_monitor_handle())
+        if dxgi_png is not None:
+            png_bytes = dxgi_png
 
     return {
         "monitor_index": monitor_index,

@@ -1,4 +1,4 @@
-from windows_agent.capture import match_monitor_index
+from windows_agent.capture import is_mostly_black, match_monitor_index
 
 # mss.monitors[0] is the combined virtual screen; real monitors start at index 1.
 TWO_MONITORS = [
@@ -33,3 +33,39 @@ def test_raises_when_no_overlap_with_any_monitor():
     except RuntimeError:
         return
     raise AssertionError("expected RuntimeError when the rect overlaps no monitor")
+
+
+# is_mostly_black gates the DXGI fallback: a pure-black mss frame (what an
+# exclusive-fullscreen game produces) should trigger it, a rendered frame not.
+FRAME_PIXELS = 200 * 200
+
+
+def test_all_black_frame_is_detected():
+    assert is_mostly_black(b"\x00\x00\x00" * FRAME_PIXELS) is True
+
+
+def test_bright_frame_is_not_black():
+    assert is_mostly_black(b"\xff\xff\xff" * FRAME_PIXELS) is False
+
+
+def test_dark_but_rendered_frame_is_not_black():
+    # A dim grey screen (value 40) is above the threshold, so it's not "black"
+    # and won't waste a DXGI capture.
+    assert is_mostly_black(b"\x28\x28\x28" * FRAME_PIXELS) is False
+
+
+def test_near_black_below_threshold_counts_as_black():
+    # Sensor/encoding noise a few levels above zero still reads as black.
+    assert is_mostly_black(b"\x02\x01\x03" * FRAME_PIXELS) is True
+
+
+def test_single_bright_region_is_not_black():
+    # A frame that's black except for a lit patch is a real (partly dark) frame.
+    frame = bytearray(b"\x00\x00\x00" * FRAME_PIXELS)
+    for i in range(3 * (FRAME_PIXELS - 500), len(frame)):
+        frame[i] = 200
+    assert is_mostly_black(bytes(frame)) is False
+
+
+def test_empty_buffer_is_not_black():
+    assert is_mostly_black(b"") is False

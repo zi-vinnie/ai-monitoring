@@ -57,3 +57,18 @@ def get_active_monitor_rect() -> tuple[int, int, int, int] | None:
         return None
     h_monitor = win32api.MonitorFromWindow(hwnd, win32con.MONITOR_DEFAULTTONEAREST)
     return win32api.GetMonitorInfo(h_monitor)["Monitor"]
+
+
+def get_active_monitor_handle() -> int | None:
+    """Return the HMONITOR (as an int) of the monitor containing the focused window.
+
+    The DXGI fallback capture uses this to pick the matching Desktop Duplication
+    output: an HMONITOR is a stable, session-wide handle for a physical monitor,
+    so the value from MonitorFromWindow matches the one DXGI reports for the same
+    monitor. Returns None if there's no focused window.
+    """
+    _require_windows()
+    hwnd = win32gui.GetForegroundWindow()
+    if not hwnd:
+        return None
+    return int(win32api.MonitorFromWindow(hwnd, win32con.MONITOR_DEFAULTTONEAREST))
