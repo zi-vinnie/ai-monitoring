@@ -48,23 +48,8 @@ This creates a `.venv` and installs the project along with its dependencies (`re
    AGENT_API_KEY=changeme               # must match the agent's configured API key
    SCREENSHOT_DIR=data/screenshots      # where PNGs are saved
    DB_PATH=data/metadata.sqlite3        # where the SQLite metadata db lives
-   ROUTER_IP=192.168.1.1                # optional: LAN gateway, for reachability diagnosis
   ```
    `SCREENSHOT_DIR` and `DB_PATH` are created automatically on first run if they don't exist.
-
-### Reachability diagnosis
-
-When a poll can't complete, the failure is recorded in the `agent_status` table with a `status` that says *why*, so an outage in the logs isn't ambiguous:
-
-| status | meaning |
-| --- | --- |
-| `network_down` | the router at `ROUTER_IP` didn't answer a ping — Wi-Fi/router is likely down (only distinguishable when `ROUTER_IP` is set) |
-| `agent_down` | the machine answers ping but the agent port doesn't — machine is on, the agent service is stopped or firewalled |
-| `unreachable` | the machine didn't answer ping — off, asleep, or off the network |
-| `unauthorized` | the agent responded with HTTP 401/403 — reachable, but the API key was rejected (a permissions issue, not an outage) |
-| `error` | the agent responded with another error (e.g. 500 when capture failed on a locked screen) |
-
-The `network_down` / `agent_down` / `unreachable` split comes from ICMP pings (via the system `ping`), so no extra privileges are needed. Setting `ROUTER_IP` is what lets the server tell "our Wi-Fi is down" apart from "the monitored machine is off"; leave it blank to skip that probe.
 
 
 
