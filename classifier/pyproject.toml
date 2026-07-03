@@ -1,0 +1,24 @@
+[project]
+name = "classifier"
+version = "0.1.0"
+description = "Daily job: labels the day's screenshots with a local Ollama vision model and emails a screen-time summary chart"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "python-dotenv>=1.2.2",
+    "requests>=2.34.2",
+    "matplotlib>=3.9",
+]
+
+[project.scripts]
+classify-screenshots = "classifier.classify:main"
+send-report = "classifier.report:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.26,<0.12.0"]
+build-backend = "uv_build"

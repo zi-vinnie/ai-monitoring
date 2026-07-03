@@ -15,6 +15,14 @@
         "windows-agent/.venv/lib/python3.12/site-packages",
         "windows-agent/.venv/lib64/python3.12/site-packages"
       ]
+    },
+    {
+      "root": "classifier",
+      "extraPaths": [
+        "classifier/src",
+        "classifier/.venv/lib/python3.12/site-packages",
+        "classifier/.venv/lib64/python3.12/site-packages"
+      ]
     }
   ]
 }
