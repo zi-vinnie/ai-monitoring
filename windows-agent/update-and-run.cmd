@@ -16,16 +16,6 @@ rem stay absent until the next successful logon (imports for them are guarded).
 setlocal
 cd /d "%~dp0"
 
-rem Build/reuse the venv against the machine-wide system Python (all users),
-rem never a per-user managed Python under one account's profile. A per-user
-rem interpreter is unreadable by any other account, so a venv pointing at it
-rem breaks the moment a different user runs the agent ("Access is denied" /
-rem "uv trampoline failed to spawn Python"). only-system keeps the interpreter
-rem in an all-users location so the agent works regardless of who is logged on.
-rem Requires an all-users Python 3.12 to be installed (e.g. C:\Program Files\
-rem Python312); see windows-agent/README.md.
-set "UV_PYTHON_PREFERENCE=only-system"
-
 rem Single log, truncated each logon so it can't grow without bound.
 set "LOG=%~dp0update.log"
 echo [%date% %time%] logon update starting> "%LOG%"
