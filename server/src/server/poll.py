@@ -23,8 +23,8 @@ def _record_status(config: Config, status: str, detail: str) -> None:
 def run() -> None:
     """Fetch the current screenshot from the Windows agent and save it.
 
-    Single-shot entry point, meant to be invoked on a schedule (cron or a
-    systemd timer) every 10-15 minutes rather than looping internally.
+    Single-shot entry point, meant to be invoked on a schedule (a systemd
+    timer) every 10-15 minutes rather than looping internally.
     """
     config = load_config()
 
