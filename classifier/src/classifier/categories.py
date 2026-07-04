@@ -82,6 +82,14 @@ def build_prompt(window_title: str | None) -> str:
         "not by small background windows, the taskbar, or browser tabs.",
         "- Playing a game yourself is gaming; watching someone else play (a "
         "stream or gameplay video) is video_entertainment.",
+        "- A desktop wallpaper (a photo of nature, animals, or scenery behind "
+        "desktop icons and the taskbar) is NOT a video and is never "
+        "video_entertainment. A screen showing only the desktop is labeled by "
+        "the window title, or unknown if the title names nothing.",
+        "- Fullscreen games often fail to appear in the capture, leaving only "
+        "the desktop wallpaper or a black frame. If the window title names a "
+        "game but the screen shows just the desktop or a blank screen, the "
+        "game IS running — label it gaming, ignoring the wallpaper.",
         "- A game running in a browser tab is still gaming, not browsing. If "
         "the window title names a game or a game site, or the screen shows "
         "game-like graphics being controlled, it is gaming — even when the "
@@ -102,7 +110,12 @@ def build_prompt(window_title: str | None) -> str:
             f'The focused window title is "{window_title}". It usually names '
             "the app, game, video, or site in use. When the screen itself is "
             "ambiguous — a loading page, splash screen, or nearly empty window "
-            "— the title is your best evidence, so label by what it names."
+            "— the title is your best evidence, so label by what it names. "
+            "IMPORTANT: fullscreen games often fail to appear in the capture, "
+            "leaving only the desktop wallpaper or a black frame. So if the "
+            "title names a game or app but the screen shows just a desktop "
+            "background, wallpaper photo, or blank screen, trust the title and "
+            "label by what it names (a game title means gaming)."
         )
     else:
         lines.append(
