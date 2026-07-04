@@ -8,6 +8,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "requests>=2.34.2",
     "matplotlib>=3.9",
+    "pillow>=10.0",
 ]
 
 [project.scripts]

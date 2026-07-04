@@ -3,27 +3,35 @@ import json
 # The fixed activity taxonomy. One screenshot in, exactly one of these out.
 # Keep this in sync with the top-level CLAUDE.md and the `label` column values.
 CATEGORIES: tuple[str, ...] = (
-    "schoolwork",
+    "productive",
     "gaming",
     "video_entertainment",
     "social_media",
     "browsing_other",
-    "idle_locked",
+    "unknown",
 )
 
 _DESCRIPTIONS: dict[str, str] = {
-    "schoolwork": "homework, essays, coding for class, research, online learning "
-    "(Google Classroom, Canvas), documents, or educational reading.",
+    "productive": "any genuinely worthwhile or purposeful activity — trading or "
+    "investing (charts, broker/exchange platforms like TradingView, MetaTrader, "
+    "or a brokerage), coding or software development, writing, research, "
+    "learning, job or college applications, spreadsheets, or documents; also "
+    "system settings, personalisation, and file management (File Explorer); and "
+    "watching an educational or finance video (e.g. a finance, coding, or "
+    "how-to/educational YouTube video).",
     "gaming": "playing or launching video games — game clients like Steam or Epic, "
     "titles such as Minecraft or Rocket League, or any in-game screen.",
-    "video_entertainment": "watching video for fun — YouTube, Netflix, Twitch, "
-    "Disney+, or similar streaming in a video player.",
+    "video_entertainment": "watching video purely for entertainment — YouTube, "
+    "Netflix, Twitch, Disney+, or similar streaming for fun. Educational or "
+    "finance videos do NOT belong here; count those as productive.",
     "social_media": "social networking and chat — Instagram, Snapchat, TikTok, "
     "X/Twitter, Reddit, Discord, WhatsApp, Facebook, or messaging apps.",
-    "browsing_other": "general web use that fits none of the above — shopping, "
-    "news, search results, or aimless browsing.",
-    "idle_locked": "no active use — a lock screen, login/sign-in prompt, "
-    "screensaver, or an all-black or blank display.",
+    "browsing_other": "general web browsing in a browser that fits none of the "
+    "above — shopping, news, search results, or aimless browsing.",
+    "unknown": "LAST RESORT ONLY — use this solely when the screenshot genuinely "
+    "fits none of the categories above, or is too unclear or unreadable to tell "
+    "(e.g. a blank/black screen, a lock/login screen, or an image you cannot make "
+    "out). Do not use it for anything that shows identifiable activity.",
 }
 
 # JSON-schema for Ollama's structured-output `format`: constrains the model to
@@ -44,6 +52,16 @@ def build_prompt(window_title: str | None) -> str:
         "Categories:",
     ]
     lines += [f"- {name}: {_DESCRIPTIONS[name]}" for name in CATEGORIES]
+    lines.append("")
+    lines.append(
+        "Guidance: 'productive' is the primary, default category. If the screen "
+        "shows any purposeful activity, or you are unsure between 'productive' "
+        "and another category, choose 'productive'. Only pick a different "
+        "category when the screen is obviously that category — clearly a game, "
+        "an entertainment video, social media, or general web browsing. Choose "
+        "'unknown' only as a last resort when nothing fits or the image is "
+        "unreadable."
+    )
     lines.append("")
     if window_title:
         lines.append(

@@ -12,23 +12,23 @@ from classifier.aggregate import CategorySummary
 # Fixed category -> colour assignment. Per the data-viz method, categorical
 # hues are assigned in a fixed order and never by rank, so a category keeps its
 # colour regardless of where it lands in the sorted bars. Values are the
-# validated light-mode categorical palette; idle_locked is a muted grey so
-# "no activity" reads as recessive next to real activity.
+# validated light-mode categorical palette; unknown is a muted grey so this
+# last-resort/no-activity bucket reads as recessive next to real activity.
 _COLORS: dict[str, str] = {
-    "schoolwork": "#2a78d6",          # blue
+    "productive": "#2a78d6",          # blue
     "gaming": "#1baf7a",              # aqua
     "video_entertainment": "#eda100", # yellow
     "social_media": "#008300",        # green
     "browsing_other": "#4a3aa7",      # violet
-    "idle_locked": "#898781",         # muted grey
+    "unknown": "#898781",             # muted grey
 }
 _DISPLAY_NAMES: dict[str, str] = {
-    "schoolwork": "Schoolwork",
+    "productive": "Productive",
     "gaming": "Gaming",
     "video_entertainment": "Video / streaming",
     "social_media": "Social media",
-    "browsing_other": "Other browsing",
-    "idle_locked": "Idle / locked",
+    "browsing_other": "Web browsing",
+    "unknown": "Unknown",
 }
 
 # Chrome + ink from the light reference surface.

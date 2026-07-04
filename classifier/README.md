@@ -13,7 +13,7 @@ Neither loops internally; both are meant to run once a day from cron or a system
 
 Every screenshot is labelled with exactly one of:
 
-`schoolwork` · `gaming` · `video_entertainment` · `social_media` · `browsing_other` · `idle_locked`
+`productive` · `gaming` · `video_entertainment` · `social_media` · `browsing_other` · `unknown`
 
 Because the agent only ever captures the monitor holding the focused window, there's one image in and one label out — no cross-monitor reconciliation.
 
@@ -77,6 +77,7 @@ cp .env.example .env
 | `OLLAMA_URL` | Ollama base URL (default `http://localhost:11434`) |
 | `OLLAMA_MODEL` | vision model name (default `llama3.2-vision`) |
 | `OLLAMA_TIMEOUT` | per-image request timeout, seconds (default `120`) |
+| `OLLAMA_IMAGE_MAX_EDGE` | downscale each screenshot to this longest edge in px before sending, so large captures fit a small model's context window (default `1280`; `0` = full size) |
 | `POLL_INTERVAL_MINUTES` | minutes each screenshot represents — set to the server's poll interval (default `10`) |
 | `REPORT_TZ` | IANA timezone defining "a day"; blank = server local time |
 | `SMTP_HOST` / `SMTP_PORT` | SMTP server (default port `587`) |

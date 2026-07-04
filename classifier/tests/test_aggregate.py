@@ -3,11 +3,11 @@ from classifier.categories import CATEGORIES
 
 
 def test_summarize_counts_and_minutes():
-    labels = ["gaming", "gaming", "schoolwork", "idle_locked"]
+    labels = ["gaming", "gaming", "productive", "unknown"]
     summaries = {s.category: s for s in summarize(labels, minutes_per_sample=10)}
     assert summaries["gaming"].count == 2
     assert summaries["gaming"].minutes == 20
-    assert summaries["schoolwork"].minutes == 10
+    assert summaries["productive"].minutes == 10
     assert summaries["browsing_other"].count == 0
     assert summaries["browsing_other"].minutes == 0
 
@@ -25,5 +25,5 @@ def test_summarize_ignores_unknown_labels():
 
 
 def test_total_minutes_sums_all_categories():
-    summaries = summarize(["gaming", "schoolwork", "social_media"], minutes_per_sample=15)
+    summaries = summarize(["gaming", "productive", "social_media"], minutes_per_sample=15)
     assert total_minutes(summaries) == 45

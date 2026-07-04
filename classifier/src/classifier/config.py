@@ -33,6 +33,7 @@ class ClassifyConfig:
     ollama_url: str
     ollama_model: str
     request_timeout: float
+    image_max_edge: int
     report_tz: str | None
 
 
@@ -56,6 +57,9 @@ def load_classify_config() -> ClassifyConfig:
         ollama_url=os.environ.get("OLLAMA_URL", "http://localhost:11434"),
         ollama_model=os.environ.get("OLLAMA_MODEL", "llama3.2-vision"),
         request_timeout=float(os.environ.get("OLLAMA_TIMEOUT", "120")),
+        # Downscale screenshots to this longest edge before sending; keeps big
+        # captures under a small vision model's context window. 0 = full size.
+        image_max_edge=int(os.environ.get("OLLAMA_IMAGE_MAX_EDGE", "1280")),
         report_tz=os.environ.get("REPORT_TZ") or None,
     )
 

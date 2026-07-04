@@ -14,12 +14,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 _DISPLAY_NAMES: dict[str, str] = {
-    "schoolwork": "Schoolwork",
+    "productive": "Productive",
     "gaming": "Gaming",
     "video_entertainment": "Video / streaming",
     "social_media": "Social media",
-    "browsing_other": "Other browsing",
-    "idle_locked": "Idle / locked",
+    "browsing_other": "Web browsing",
+    "unknown": "Unknown",
 }
 
 

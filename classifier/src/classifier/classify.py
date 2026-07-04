@@ -1,5 +1,4 @@
 import argparse
-import base64
 import logging
 import sqlite3
 from pathlib import Path
@@ -9,6 +8,7 @@ import requests
 from classifier.categories import LABEL_FORMAT, build_prompt, parse_label
 from classifier.config import ClassifyConfig, load_classify_config
 from classifier.db import fetch_unlabeled, get_connection, set_label
+from classifier.images import encode_image
 from classifier.ollama_client import classify_image
 from classifier.timeframe import day_bounds_utc, parse_date, resolve_tz
 
@@ -23,7 +23,7 @@ def classify_one(config: ClassifyConfig, row: sqlite3.Row) -> str | None:
         # Retention may have deleted the image while its metadata row lingers.
         logger.warning("Screenshot file missing, skipping id=%s: %s", row["id"], file_path)
         return None
-    image_b64 = base64.b64encode(file_path.read_bytes()).decode()
+    image_b64 = encode_image(file_path, config.image_max_edge)
     prompt = build_prompt(row["window_title"])
     raw = classify_image(
         config.ollama_url,

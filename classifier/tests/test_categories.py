@@ -6,7 +6,7 @@ def test_parse_label_from_structured_json():
 
 
 def test_parse_label_from_json_with_whitespace():
-    assert parse_label('  {"label":"idle_locked"}\n') == "idle_locked"
+    assert parse_label('  {"label":"unknown"}\n') == "unknown"
 
 
 def test_parse_label_rejects_unknown_json_label():
