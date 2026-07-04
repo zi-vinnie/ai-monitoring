@@ -1,4 +1,5 @@
 import smtplib
+import ssl
 from email.message import EmailMessage
 
 from classifier.config import ReportConfig
@@ -38,9 +39,19 @@ def send_email(
             filename="screen-time.png",
         )
 
-    with smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=30) as smtp:
-        if config.smtp_starttls:
-            smtp.starttls()
+    # An explicit default context so the server's certificate is actually
+    # verified — smtplib's own fallback context skips verification.
+    tls_context = ssl.create_default_context()
+    if config.smtp_ssl:
+        # Implicit TLS (typically port 465): the connection is TLS from byte one.
+        smtp: smtplib.SMTP = smtplib.SMTP_SSL(
+            config.smtp_host, config.smtp_port, timeout=30, context=tls_context
+        )
+    else:
+        smtp = smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=30)
+    with smtp:
+        if config.smtp_starttls and not config.smtp_ssl:
+            smtp.starttls(context=tls_context)
         if config.smtp_user and config.smtp_password:
             smtp.login(config.smtp_user, config.smtp_password)
         smtp.send_message(message)

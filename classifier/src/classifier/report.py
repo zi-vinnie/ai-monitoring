@@ -18,7 +18,7 @@ _DISPLAY_NAMES: dict[str, str] = {
     "gaming": "Gaming",
     "video_entertainment": "Video / streaming",
     "social_media": "Social media",
-    "browsing_other": "Web browsing",
+    "browsing": "Web browsing",
     "unknown": "Unknown",
 }
 
@@ -97,7 +97,10 @@ def run(argv: list[str] | None = None) -> None:
     Single-shot entry point, meant to run once daily after `classify-screenshots`.
     """
     parser = argparse.ArgumentParser(description="Email a daily screen-time summary with a chart.")
-    parser.add_argument("--date", help="Day to report as YYYY-MM-DD (default: today in REPORT_TZ)")
+    parser.add_argument(
+        "--date",
+        help="Day to report: YYYY-MM-DD, 'today', or 'yesterday' (default: today in REPORT_TZ)",
+    )
     args = parser.parse_args(argv)
 
     config = load_report_config()

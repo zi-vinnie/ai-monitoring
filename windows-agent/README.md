@@ -2,17 +2,15 @@
 
 The Windows-side component of the ai-monitoring parental screen-monitoring system.
 
-It runs as a background service on the monitored Windows machine and exposes a single API-key-protected endpoint, `/screenshot`, that captures **only the monitor currently holding the focused window** and returns it as a base64 PNG. The [server](../server) component polls this endpoint every 10-15 minutes.
+A FastAPI service on the monitored machine exposing one API-key-protected endpoint, `GET /screenshot`, which captures **only the monitor currently holding the focused window** and returns it as base64 PNG. The [server](../server) component polls it every 10–15 minutes.
 
-## What it does
+## How it works
 
-On each `GET /screenshot` request (authenticated via `X-API-Key`):
+On each request (authenticated via `X-API-Key`, checked with `secrets.compare_digest`):
 
-1. Finds the foreground window and the monitor it's on (`win32gui.GetForegroundWindow` + `win32api.MonitorFromWindow`).
-2. Matches that monitor to its index in `mss`'s monitor list.
-3. Captures just that monitor and encodes it as PNG/base64.
-   - If the `mss` (GDI) capture comes back black — which is what happens for **exclusive-fullscreen games** like Rocket League, since they bypass the desktop compositor — the agent re-captures that monitor via the **Desktop Duplication API** (`dxcam`), which can read the GPU output directly. Normal desktop captures never hit this path. If `dxcam` is unavailable or fails, the original (black) frame is kept, so behaviour never regresses.
-4. Returns:
+1. Finds the foreground window and its monitor (`pywin32`), matching it to an `mss` monitor index by greatest rect overlap (robust to DPI-scaling offsets). Falls back to monitor 1 if no window is focused.
+2. Captures that monitor with `mss` (GDI). If the frame comes back black — which happens for **exclusive-fullscreen games** (Rocket League etc.) because they bypass the desktop compositor — it re-captures via the **Desktop Duplication API** (`dxcam`), which reads the GPU output directly. This path is fallback-only: normal captures never hit it, and any `dxcam` failure keeps the original frame.
+3. Returns:
 
    ```json
    {
@@ -23,51 +21,26 @@ On each `GET /screenshot` request (authenticated via `X-API-Key`):
    }
    ```
 
-   `window_title` is `null` if there's no focused window. If there's no focused window, monitor 1 is captured as a fallback.
-
-No cross-monitor stitching or reconciliation is done — since only the focused monitor is captured, there's exactly one image and one label per capture.
-
-## Requirements
-
-- Windows (the active-window/monitor detection uses `pywin32` and only works there — the project still installs and resolves on other platforms, but calling `/screenshot` off-Windows will raise)
-- Python 3.12
-- [uv](https://docs.astral.sh/uv/)
-
-## Installation
-
-From the `windows-agent/` directory:
-
-```powershell
-uv sync
-```
-
-This creates a `.venv` and installs `fastapi`, `mss`, `uvicorn`, `python-dotenv`, and (on Windows) `pywin32` and `dxcam` (the latter for the fullscreen-game capture fallback).
+   `window_title` is `null` if there's no focused window.
 
 ## Setup
 
-1. Copy the example env file and set a real key:
+Requires Windows (the win32/dxcam code is import-guarded, so the project still installs elsewhere, but `/screenshot` only works on Windows), Python 3.12, and [uv](https://docs.astral.sh/uv/).
 
-   ```powershell
-   copy .env.example .env
-   ```
+```powershell
+uv sync
+copy .env.example .env
+```
 
-2. Edit `.env`:
+Set `API_KEY` in `.env` to a long random value (`python -c "import secrets; print(secrets.token_hex(32))"`) and use the same value for `AGENT_API_KEY` in the server's `.env`. Never commit or log it.
 
-   ```
-   API_KEY=changeme
-   ```
+The agent binds to `0.0.0.0:8000` so the server can reach it over the LAN. Scope inbound access to the server's IP:
 
-   Use a long, random value (e.g. `python -c "import secrets; print(secrets.token_hex(32))"`) and use the same value for `AGENT_API_KEY` in the server's `.env`. Never commit `.env` or log this key — `.env` is already gitignored.
-
-3. The agent listens on all interfaces at port 8000 (`0.0.0.0:8000`) so the server can reach it over the LAN. Restrict who can actually connect with a Windows Firewall inbound rule scoped to the server's IP:
-
-   ```powershell
-   New-NetFirewallRule -DisplayName "windows-agent screenshot" `
-     -Direction Inbound -Protocol TCP -LocalPort 8000 `
-     -RemoteAddress <server-lan-ip> -Action Allow
-   ```
-
-   Without a rule like this, any device on the LAN that has (or guesses) the API key can reach the endpoint.
+```powershell
+New-NetFirewallRule -DisplayName "windows-agent screenshot" `
+  -Direction Inbound -Protocol TCP -LocalPort 8000 `
+  -RemoteAddress <server-lan-ip> -Action Allow
+```
 
 ## Running
 
@@ -75,13 +48,7 @@ This creates a `.venv` and installs `fastapi`, `mss`, `uvicorn`, `python-dotenv`
 uv run windows-agent
 ```
 
-This starts the FastAPI app under uvicorn on `0.0.0.0:8000`. Test it from the machine itself:
-
-```powershell
-curl.exe -H "X-API-Key: changeme" http://127.0.0.1:8000/screenshot
-```
-
-To verify the returned image is a real, complete screenshot (rather than eyeballing the JSON), decode it with Python — avoid Windows PowerShell's `ConvertFrom-Json`, which can truncate the long base64 string and produce a "corrupted" PNG:
+Test from the machine itself:
 
 ```powershell
 curl.exe -s -H "X-API-Key: changeme" http://127.0.0.1:8000/screenshot -o shot.json
@@ -89,55 +56,46 @@ uv run python -c "import json,base64; d=json.load(open('shot.json')); b=base64.b
 start shot.png
 ```
 
-### Running hidden / as a background service
+(Decode with Python rather than PowerShell's `ConvertFrom-Json`, which can truncate the long base64 string.)
 
-The agent is meant to run hidden on the monitored machine rather than as a visible console window, and to start automatically so the server's polling doesn't silently fail after a reboot.
+Run tests with `uv run pytest`.
 
-**Important — it must run in the logged-on user's interactive session.** Screen capture only works from an interactive desktop. A background *service* (NSSM, or Task Scheduler's "Run whether user is logged on or not") runs in **session 0**, which has no visible desktop, so `mss` there captures **black frames** or fails outright. Don't use NSSM/session-0 for this. Instead run it via Task Scheduler triggered at the monitored user's logon, in their session — capturing their screen while they use it (there's nothing meaningful to capture when they're logged out).
+## Deploying: hidden, auto-starting, auto-updating
 
-**Import the provided task** ([`windows-agent-task.xml`](./windows-agent-task.xml)) — it's preconfigured for all of the above (logon trigger, runs as the logged-on user, hidden, no console window, no execution time limit, restart-on-failure). From an elevated PowerShell:
+The agent should start at logon and run with no visible window. **It must run in the logged-on user's interactive session** — a session-0 service (NSSM, or Task Scheduler's "Run whether user is logged on or not") has no visible desktop, so capture returns black frames. Use the provided Task Scheduler task instead, from an elevated PowerShell:
 
 ```powershell
 schtasks /Create /TN "windows-agent" /XML "C:\ProgramData\ai-monitoring\windows-agent\windows-agent-task.xml" /F
 ```
 
-Or in the Task Scheduler GUI: **Action → Import Task…** and select the XML.
+The task is preconfigured: logon trigger, runs as the logged-on user, hidden, no time limit, restart-on-failure. It runs `wscript.exe run-hidden.vbs`, which launches `update-and-run.cmd` with a hidden console inherited by all children (pointing the task straight at `pythonw.exe` doesn't work — a uv venv's `pythonw.exe` re-launches the console base `python.exe`, which pops a window). If you cloned somewhere other than `C:\ProgramData\ai-monitoring`, edit the paths in both `run-hidden.vbs` and the XML's `<WorkingDirectory>`.
 
-The task's Action runs `wscript.exe run-hidden.vbs` ([`run-hidden.vbs`](./run-hidden.vbs)), which runs everything with **no visible window**. `run-hidden.vbs` launches [`update-and-run.cmd`](./update-and-run.cmd) with a hidden window (window style 0); that hidden console is inherited by every child process, so nothing appears on screen. This indirection is necessary: pointing the task straight at `.venv\Scripts\pythonw.exe` still pops a console window, because a uv virtualenv's `pythonw.exe` is a trampoline that re-launches uv's *console* base `python.exe`, and that child is handed its own new console; git and uv would flash consoles too. The VBS sets its working directory to the project folder so `config.py`'s `load_dotenv()` finds `.env`. If you cloned somewhere other than `C:\ProgramData\ai-monitoring`, edit the paths in **both** `run-hidden.vbs` and the XML's `<WorkingDirectory>`.
+`update-and-run.cmd` self-updates before starting the agent: `git pull --ff-only`, then `uv sync`, then launch. Both steps are best-effort — if offline or diverged, it logs and starts anyway, so a bad pull never leaves the machine unmonitored. Output goes to `update.log` (truncated each logon). This is safe at logon because the previous instance died at logoff, so nothing locks the `.venv`; to update a *running* agent mid-session, restart the task (Task Scheduler → **End**, then **Run**).
 
-### Auto-update at logon
+Prerequisites: `git` and `uv` on the user's `PATH`, and `git pull` must work non-interactively (public repo or cached credentials). **Security implication: anyone who can push to this repo gets code execution on the monitored machine at its next logon.**
 
-`update-and-run.cmd` self-updates the agent on every logon, before starting it:
-
-1. `git pull --ff-only` in the repo root (picks up new code).
-2. `uv sync` (installs any new/changed dependencies).
-3. Starts the agent (`python -m windows_agent.main`).
-
-Steps 1–2 are best-effort: if the box is offline or the branch has diverged, the script logs a note and starts the agent anyway, so a bad pull never leaves the machine unmonitored. Output goes to `windows-agent\update.log` (truncated each logon, so it can't grow without bound).
-
-**Does this need to stop the running agent first? No — not in the logon flow.** The task is *"run only when the user is logged on"*, so the previous instance is already terminated at logoff; at the next logon nothing holds the `.venv`'s `python.exe`/`.pyd` files, and `uv sync` can safely replace them. That's also *why* the update runs before the agent starts. The one case that **does** require stopping first is updating a **currently running** agent mid-session (Windows locks the running executable, so `uv sync` couldn't replace it) — just **restart the task** (Task Scheduler → right-click → **End**, then **Run**), which re-runs the pull/sync/start sequence cleanly.
-
-Prerequisites: `git` and `uv` must be on the logged-on user's `PATH` (they are after a normal `uv` install), and the clone must be able to `git pull` **non-interactively** — i.e. a public repo over HTTPS, or credentials already cached by a Git credential helper. Note the security implication: anyone who can push to this repo gets code execution on the monitored machine at its next logon.
-
-To verify: after importing, log off and back on (or right-click the task → **Run**), then hit `/screenshot` from the server — you should get JSON back with no visible window on the monitored machine. Check `windows-agent\update.log` to confirm the pull/sync ran.
+To verify: run the task (or log off and on), hit `/screenshot` from the server, and check `update.log`.
 
 ## Security
 
-- `/screenshot` is API-key protected via the `X-API-Key` header, compared with `secrets.compare_digest` to avoid timing attacks. Never remove or weaken this check, and never log or print the API key.
-- Traffic between the server and this agent is plain HTTP — the API key and screenshot bytes are sent in cleartext. On an untrusted or shared network, put this behind a VPN/overlay network (e.g. Tailscale/WireGuard) or add TLS rather than exposing it over the open LAN.
-- Scope inbound access to the server's IP with a firewall rule (see Setup above) so the API key isn't the only thing standing between the LAN and this endpoint.
-- This tool is intended strictly for authorized parental monitoring of a household device. Do not extend it toward covert surveillance of adults without consent, or add remote-install/hidden-persistence/keylogging features that would turn it into general-purpose stalkerware — see the top-level [CLAUDE.md](../CLAUDE.md#security) for the full policy.
+- Never remove or weaken the API-key check, and never log or print the key.
+- Traffic is plain HTTP — the key and screenshots travel in cleartext on the LAN. On an untrusted network, use a VPN/overlay (Tailscale/WireGuard) or add TLS.
+- Keep the firewall rule (above) so the key isn't the only protection.
+- Intended strictly for authorized parental monitoring of a household device. Do not extend it toward covert surveillance or stalkerware features — see the top-level [CLAUDE.md](../CLAUDE.md#security) for the full policy.
 
 ## Project structure
 
 ```
 windows-agent/
   src/windows_agent/
-    config.py         # loads API_KEY from .env
-    active_monitor.py # win32 foreground window + monitor detection
-    capture.py         # matches win32 monitor rect to an mss monitor index, captures PNG
-    app.py            # FastAPI app, /screenshot endpoint, API key check
-    main.py           # uvicorn entry point (windows-agent script)
-  .env.example
-  pyproject.toml
+    config.py          # loads API_KEY from .env
+    active_monitor.py  # win32 foreground window/monitor detection, DPI awareness
+    capture.py         # mss capture, monitor matching, black-frame detection
+    capture_dxgi.py    # Desktop Duplication fallback for fullscreen games
+    app.py             # FastAPI app, /screenshot endpoint, API key check
+    main.py            # uvicorn entry point (windows-agent script)
+  tests/               # pure-function tests (monitor matching, black detection)
+  run-hidden.vbs       # launches update-and-run.cmd with no visible window
+  update-and-run.cmd   # git pull + uv sync + start agent, logs to update.log
+  windows-agent-task.xml  # importable Task Scheduler task (logon, hidden)
 ```

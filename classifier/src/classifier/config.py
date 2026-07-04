@@ -47,6 +47,7 @@ class ReportConfig:
     smtp_user: str | None
     smtp_password: str | None
     smtp_starttls: bool
+    smtp_ssl: bool
     email_from: str
     email_to: list[str]
 
@@ -76,6 +77,9 @@ def load_report_config() -> ReportConfig:
         # STARTTLS on by default (port 587); set SMTP_STARTTLS=false for a plain
         # or already-implicit-TLS connection.
         smtp_starttls=os.environ.get("SMTP_STARTTLS", "true").strip().lower() not in ("false", "0", "no"),
+        # Implicit TLS from the first byte (typically port 465). When true,
+        # STARTTLS is skipped — the connection is already encrypted.
+        smtp_ssl=os.environ.get("SMTP_SSL", "false").strip().lower() in ("true", "1", "yes"),
         email_from=os.environ["EMAIL_FROM"],
         email_to=_split_recipients(os.environ.get("EMAIL_TO", "")),
     )

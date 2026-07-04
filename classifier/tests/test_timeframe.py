@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from zoneinfo import ZoneInfo
 
@@ -8,6 +8,18 @@ from classifier.timeframe import day_bounds_utc, parse_date
 def test_parse_explicit_date():
     tz = ZoneInfo("UTC")
     assert parse_date("2026-07-02", tz) == date(2026, 7, 2)
+
+
+def test_parse_date_yesterday_keyword():
+    tz = ZoneInfo("UTC")
+    expected = datetime.now(tz).date() - timedelta(days=1)
+    assert parse_date("yesterday", tz) == expected
+    assert parse_date("  Yesterday ", tz) == expected
+
+
+def test_parse_date_today_keyword_matches_default():
+    tz = ZoneInfo("UTC")
+    assert parse_date("today", tz) == parse_date(None, tz)
 
 
 def test_day_bounds_utc_for_utc_zone():

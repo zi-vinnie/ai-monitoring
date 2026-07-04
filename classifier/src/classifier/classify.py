@@ -42,13 +42,16 @@ def classify_one(config: ClassifyConfig, row: sqlite3.Row) -> str | None:
 def run(argv: list[str] | None = None) -> None:
     """Classify the day's unlabeled screenshots with the local Ollama model.
 
-    Single-shot entry point, meant to run once daily (cron / systemd timer)
-    after the day's polling is done.
+    Single-shot entry point, meant to run once daily (systemd timer) after
+    the day's polling is done.
     """
     parser = argparse.ArgumentParser(
         description="Label the day's screenshots with a local Ollama vision model."
     )
-    parser.add_argument("--date", help="Day to classify as YYYY-MM-DD (default: today in REPORT_TZ)")
+    parser.add_argument(
+        "--date",
+        help="Day to classify: YYYY-MM-DD, 'today', or 'yesterday' (default: today in REPORT_TZ)",
+    )
     args = parser.parse_args(argv)
 
     config = load_classify_config()

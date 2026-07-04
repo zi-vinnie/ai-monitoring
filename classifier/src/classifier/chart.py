@@ -19,7 +19,7 @@ _COLORS: dict[str, str] = {
     "gaming": "#1baf7a",              # aqua
     "video_entertainment": "#eda100", # yellow
     "social_media": "#008300",        # green
-    "browsing_other": "#4a3aa7",      # violet
+    "browsing": "#4a3aa7",      # violet
     "unknown": "#898781",             # muted grey
 }
 _DISPLAY_NAMES: dict[str, str] = {
@@ -27,7 +27,7 @@ _DISPLAY_NAMES: dict[str, str] = {
     "gaming": "Gaming",
     "video_entertainment": "Video / streaming",
     "social_media": "Social media",
-    "browsing_other": "Web browsing",
+    "browsing": "Web browsing",
     "unknown": "Unknown",
 }
 

@@ -7,20 +7,20 @@ It has two scheduled, single-shot entry points that share the SQLite database th
 1. **`classify-screenshots`** — labels the day's screenshots with a local [Ollama](https://ollama.com) vision model.
 2. **`send-report`** — aggregates the day's labels into time-per-category, renders a chart, and emails a summary.
 
-Neither loops internally; both are meant to run once a day from cron or a systemd timer (classify first, then report).
+Neither loops internally; both are meant to run once a day by a systemd timer (classify first, then report).
 
 ## Categories
 
 Every screenshot is labelled with exactly one of:
 
-`productive` · `gaming` · `video_entertainment` · `social_media` · `browsing_other` · `unknown`
+`productive` · `gaming` · `video_entertainment` · `social_media` · `browsing` · `unknown`
 
 Because the agent only ever captures the monitor holding the focused window, there's one image in and one label out — no cross-monitor reconciliation.
 
 ## How `classify-screenshots` works
 
 1. Reads the day's `screenshots` rows where `label IS NULL` from the shared DB.
-2. For each, base64-encodes the PNG and sends it to Ollama's `/api/generate` with the focused window title as a hint and a structured-output `format` (a JSON schema whose `label` is constrained to the six categories), at `temperature 0`.
+2. For each, base64-encodes the PNG (downscaled to `OLLAMA_IMAGE_MAX_EDGE`) and sends it to Ollama's `/api/generate` with the focused window title as a hint and a structured-output `format`, at `temperature 0`. The JSON schema asks for a one-sentence `screen_content` description *before* a `label` constrained to the six categories — describing the screen first is a cheap reasoning step that helps the small vision model pick the right label.
 3. Writes the returned label back to the row.
 
 Per-image failures (Ollama down, model missing, timeout, a deleted image file, an unrecognisable response) are logged and skipped — the row stays unlabelled so a later run retries it, rather than aborting the batch.
@@ -81,35 +81,110 @@ cp .env.example .env
 | `POLL_INTERVAL_MINUTES` | minutes each screenshot represents — set to the server's poll interval (default `10`) |
 | `REPORT_TZ` | IANA timezone defining "a day"; blank = server local time |
 | `SMTP_HOST` / `SMTP_PORT` | SMTP server (default port `587`) |
-| `SMTP_STARTTLS` | `true` (default) to upgrade with STARTTLS |
+| `SMTP_STARTTLS` | `true` (default) to upgrade the port-587 connection to TLS with STARTTLS |
+| `SMTP_SSL` | `true` for implicit TLS from the first byte (typically port `465`); default `false`. When set, STARTTLS is skipped |
 | `SMTP_USER` / `SMTP_PASSWORD` | SMTP credentials (omit for an unauthenticated relay) |
 | `EMAIL_FROM` | From address |
 | `EMAIL_TO` | comma-separated recipient list |
 
 Relative `DB_PATH` resolves against the `.env` file's directory, so the job can be invoked from anywhere.
 
+### Setting up email (SMTP)
+
+SMTP is the protocol mail apps use to hand a message to a mail server for delivery — `send-report` acts like a mail app: it connects to your provider's SMTP server, logs in, and hands over the report. You don't run a mail server yourself; you just need an account to send *from* (Gmail works well).
+
+**Gmail setup** (5 minutes):
+
+1. Gmail blocks your normal password for SMTP, so you need an **app password**. That requires 2-Step Verification: [myaccount.google.com/security](https://myaccount.google.com/security) → turn on **2-Step Verification** if it isn't already.
+2. Go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords), enter a name like `ai-monitoring`, and click **Create**. Google shows a 16-character password **once** — copy it.
+3. In `.env`, set:
+   - `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_STARTTLS=true` (already the example defaults)
+   - `SMTP_USER` and `EMAIL_FROM` to your Gmail address
+   - `SMTP_PASSWORD` to the app password (spaces are fine)
+   - `EMAIL_TO` to the recipient(s), comma-separated
+4. Test it: `uv run send-report --date yesterday`. The report (or a "no activity recorded" notice) should arrive within seconds; errors print to the terminal — `535` means the username/app password is wrong.
+
+Any other provider works the same way: its SMTP host/port and a login. Port 587 uses STARTTLS (the default here); if a provider only offers port 465, set `SMTP_PORT=465` and `SMTP_SSL=true`.
+
 ## Running
 
 ```bash
-uv run classify-screenshots          # label today's screenshots
-uv run send-report                   # email today's summary
+uv run classify-screenshots                     # label today's screenshots
+uv run send-report                              # email today's summary
 
-uv run classify-screenshots --date 2026-07-02   # a specific day
-uv run send-report --date 2026-07-02
+uv run classify-screenshots --date yesterday    # the previous day (for morning schedules)
+uv run send-report --date 2026-07-02            # or an explicit day
 ```
+
+`--date` accepts `YYYY-MM-DD`, `today`, or `yesterday`, interpreted in `REPORT_TZ`.
 
 ### Scheduling
 
-Run once daily, classify before report. A common pattern is to summarise *yesterday* early each morning (pass `--date` for the previous day), or summarise *today* late in the evening.
+Run once daily, classify before report. The intended schedule covers the **previous day**: classify in the small hours (when the machine is idle and the day's screenshots are complete), then send the report at breakfast time — both with `--date yesterday`.
 
-**Cron example** (classify at 23:30, report at 23:45, for the current day):
+Scheduled with **systemd timers**, like the server's `poll-screenshots`. `Persistent=true` catches up on runs missed while the server was off — without it, a server that's asleep at 09:00 simply never sends that day's report — and logs land in journald.
 
-```cron
-30 23 * * * cd /path/to/ai-monitoring/classifier && /path/to/uv run classify-screenshots >> /path/to/logs/classify.log 2>&1
-45 23 * * * cd /path/to/ai-monitoring/classifier && /path/to/uv run send-report      >> /path/to/logs/report.log   2>&1
+`/etc/systemd/system/classify-screenshots.service`:
+
+```ini
+[Unit]
+Description=Label yesterday's screenshots with the local Ollama vision model
+
+[Service]
+Type=oneshot
+WorkingDirectory=/path/to/ai-monitoring/classifier
+ExecStart=/path/to/uv run classify-screenshots --date yesterday
 ```
 
-For systemd timers, follow the same shape as the server's `poll-screenshots` units (`Type=oneshot`, a `.timer` with `OnCalendar=`).
+`/etc/systemd/system/classify-screenshots.timer`:
+
+```ini
+[Unit]
+Description=Run classify-screenshots daily at 03:00
+
+[Timer]
+OnCalendar=03:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+`/etc/systemd/system/send-report.service`:
+
+```ini
+[Unit]
+Description=Email yesterday's screen-time summary
+# If a catch-up run fires both jobs at once (e.g. at boot), classify goes first.
+After=classify-screenshots.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/path/to/ai-monitoring/classifier
+ExecStart=/path/to/uv run send-report --date yesterday
+```
+
+`/etc/systemd/system/send-report.timer`:
+
+```ini
+[Unit]
+Description=Run send-report daily at 09:00
+
+[Timer]
+OnCalendar=09:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl enable --now classify-screenshots.timer send-report.timer
+```
+
+(`/path/to/uv` = the output of `command -v uv`. `OnCalendar` uses the server's local clock; the *day boundaries* come from `REPORT_TZ`.)
+
+Check the schedule with `systemctl list-timers`, and logs with `journalctl -u classify-screenshots -u send-report`. The 03:00→09:00 gap doubles as a retry window: if Ollama was down at 3am, rows stay unlabelled and a manual `uv run classify-screenshots --date yesterday` (or `systemctl start classify-screenshots.service`) before 9am fills them in — the report only counts labels present when it runs.
 
 ## Project structure
 

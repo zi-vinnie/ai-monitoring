@@ -47,7 +47,3 @@ def insert_agent_status(conn: sqlite3.Connection, checked_at: str, status: str, 
         (checked_at, status, detail),
     )
     conn.commit()
-
-
-def insert_agent_unreachable(conn: sqlite3.Connection, checked_at: str, detail: str) -> None:
-    insert_agent_status(conn, checked_at, "unreachable", detail)

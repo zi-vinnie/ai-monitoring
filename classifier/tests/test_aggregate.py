@@ -8,8 +8,8 @@ def test_summarize_counts_and_minutes():
     assert summaries["gaming"].count == 2
     assert summaries["gaming"].minutes == 20
     assert summaries["productive"].minutes == 10
-    assert summaries["browsing_other"].count == 0
-    assert summaries["browsing_other"].minutes == 0
+    assert summaries["browsing"].count == 0
+    assert summaries["browsing"].minutes == 0
 
 
 def test_summarize_returns_every_category_in_order():

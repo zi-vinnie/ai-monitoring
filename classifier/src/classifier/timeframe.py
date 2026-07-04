@@ -15,10 +15,20 @@ def resolve_tz(name: str | None) -> tzinfo:
 
 
 def parse_date(value: str | None, tz: tzinfo) -> date:
-    """Target day: an explicit ``YYYY-MM-DD``, else today in ``tz``."""
-    if value:
-        return date.fromisoformat(value)
-    return datetime.now(tz).date()
+    """Target day: ``YYYY-MM-DD``, ``today``, or ``yesterday`` (else today in ``tz``).
+
+    ``yesterday`` exists for the intended schedule — classify and report run in
+    the early morning *after* the day they cover, so the timer units can say
+    ``--date yesterday`` instead of computing a date.
+    """
+    if not value:
+        return datetime.now(tz).date()
+    keyword = value.strip().lower()
+    if keyword == "today":
+        return datetime.now(tz).date()
+    if keyword == "yesterday":
+        return datetime.now(tz).date() - timedelta(days=1)
+    return date.fromisoformat(value)
 
 
 def day_bounds_utc(day: date, tz: tzinfo) -> tuple[str, str]:
