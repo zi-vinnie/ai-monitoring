@@ -54,14 +54,14 @@ uv sync
 
 ### Ollama
 
-Install Ollama and pull a vision model (the default is `llama3.2-vision`):
+Install Ollama and pull a vision model (the default is `minicpm-v4.6`):
 
 ```bash
 # https://ollama.com/download
-ollama pull llama3.2-vision
+ollama pull minicpm-v4.6
 ```
 
-Any vision model Ollama supports works — set `OLLAMA_MODEL` to it. Smaller models (e.g. `llava`) are faster but less accurate; larger ones are slower on CPU (raise `OLLAMA_TIMEOUT`).
+Any vision model Ollama supports works — set `OLLAMA_MODEL` to it. Smaller models (e.g. `moondream`) are faster but less accurate; larger ones are slower on CPU (raise `OLLAMA_TIMEOUT`).
 
 ## Setup
 
@@ -75,7 +75,7 @@ cp .env.example .env
 | --- | --- |
 | `DB_PATH` | path to the server's SQLite DB (default points at `../server/data/metadata.sqlite3`) |
 | `OLLAMA_URL` | Ollama base URL (default `http://localhost:11434`) |
-| `OLLAMA_MODEL` | vision model name (default `llama3.2-vision`) |
+| `OLLAMA_MODEL` | vision model name (default `minicpm-v4.6`) |
 | `OLLAMA_TIMEOUT` | per-image request timeout, seconds (default `120`) |
 | `OLLAMA_IMAGE_MAX_EDGE` | downscale each screenshot to this longest edge in px before sending, so large captures fit a small model's context window (default `1280`; `0` = full size) |
 | `POLL_INTERVAL_MINUTES` | minutes each screenshot represents — set to the server's poll interval (default `10`) |

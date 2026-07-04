@@ -55,7 +55,7 @@ def load_classify_config() -> ClassifyConfig:
     return ClassifyConfig(
         db_path=_db_path(),
         ollama_url=os.environ.get("OLLAMA_URL", "http://localhost:11434"),
-        ollama_model=os.environ.get("OLLAMA_MODEL", "llama3.2-vision"),
+        ollama_model=os.environ.get("OLLAMA_MODEL", "minicpm-v4.6"),
         request_timeout=float(os.environ.get("OLLAMA_TIMEOUT", "120")),
         # Downscale screenshots to this longest edge before sending; keeps big
         # captures under a small vision model's context window. 0 = full size.
