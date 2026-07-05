@@ -11,6 +11,10 @@ from server.fetch import fetch_screenshot
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
+# Window titles that are pure noise: skip storing them entirely to save space.
+# The lock screen carries no activity signal and would only ever label as unknown.
+SKIP_WINDOW_TITLES = {"Windows Default Lock Screen"}
+
 
 def _record_status(config: Config, status: str, detail: str) -> None:
     conn = get_connection(config.db_path)
@@ -49,6 +53,12 @@ def run() -> None:
 
     monitor_index = payload["monitor_index"]
     window_title = payload.get("window_title")
+
+    if window_title in SKIP_WINDOW_TITLES:
+        # Don't waste storage/DB rows on the lock screen.
+        logger.info("Skipping screenshot for window %r (in skip list)", window_title)
+        return
+
     image_bytes = base64.b64decode(payload["png_base64"])
 
     day_dir = config.screenshot_dir / captured_dt.strftime("%Y-%m-%d")
