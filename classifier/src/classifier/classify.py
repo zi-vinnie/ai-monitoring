@@ -5,7 +5,12 @@ from pathlib import Path
 
 import requests
 
-from classifier.categories import LABEL_FORMAT, build_prompt, parse_label
+from classifier.categories import (
+    LABEL_FORMAT,
+    build_prompt,
+    label_for_title,
+    parse_label,
+)
 from classifier.config import ClassifyConfig, load_classify_config
 from classifier.db import fetch_unlabeled, get_connection, set_label
 from classifier.images import encode_image
@@ -18,6 +23,12 @@ logger = logging.getLogger(__name__)
 
 def classify_one(config: ClassifyConfig, row: sqlite3.Row) -> str | None:
     """Label a single screenshot row, or None if it can't be classified."""
+    override = label_for_title(row["window_title"])
+    if override is not None:
+        # Known game client — the title is decisive, so skip the image encode
+        # and Ollama call entirely.
+        logger.info("id=%s -> %s via title override (window=%r)", row["id"], override, row["window_title"])
+        return override
     file_path = Path(row["file_path"])
     if not file_path.exists():
         # Retention may have deleted the image while its metadata row lingers.

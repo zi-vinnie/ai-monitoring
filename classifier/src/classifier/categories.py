@@ -52,6 +52,28 @@ _DESCRIPTIONS: dict[str, str] = {
     "when you can identify any app, site, or activity.",
 }
 
+# Exact window titles we can label without asking the vision model. These are
+# unambiguous game clients whose title never appears outside the game, so we
+# short-circuit straight to `gaming` and skip the Ollama call — cheaper, and it
+# also dodges the exclusive-fullscreen black/wallpaper frame problem entirely.
+# Match is case-insensitive on the stripped title. Keep values in CATEGORIES.
+_TITLE_OVERRIDES: dict[str, str] = {
+    "overwatch": "gaming",
+    "rocket league (64-bit, dx11, cooked)": "gaming",
+}
+
+
+def label_for_title(window_title: str | None) -> str | None:
+    """Return a hard-coded label for a known window title, else None.
+
+    Lets the classifier skip the vision model for titles that map to exactly one
+    category with certainty. Returns None (fall through to the model) otherwise.
+    """
+    if not window_title:
+        return None
+    return _TITLE_OVERRIDES.get(window_title.strip().lower())
+
+
 # JSON-schema for Ollama's structured-output `format`. `screen_content` comes
 # first so the model describes what it sees before committing to a label (a
 # cheap reasoning step that measurably helps small vision models); `label` is

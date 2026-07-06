@@ -1,4 +1,33 @@
-from classifier.categories import CATEGORIES, LABEL_FORMAT, build_prompt, parse_label
+from classifier.categories import (
+    CATEGORIES,
+    LABEL_FORMAT,
+    build_prompt,
+    label_for_title,
+    parse_label,
+)
+
+
+def test_label_for_title_matches_known_games():
+    assert label_for_title("Overwatch") == "gaming"
+    assert label_for_title("Rocket League (64-bit, DX11, Cooked)") == "gaming"
+
+
+def test_label_for_title_is_case_insensitive_and_stripped():
+    assert label_for_title("  overwatch  ") == "gaming"
+    assert label_for_title("ROCKET LEAGUE (64-BIT, DX11, COOKED)") == "gaming"
+
+
+def test_label_for_title_returns_none_for_unknown_or_missing():
+    assert label_for_title("Google Chrome") is None
+    assert label_for_title(None) is None
+    assert label_for_title("") is None
+
+
+def test_title_override_labels_are_valid_categories():
+    from classifier.categories import _TITLE_OVERRIDES
+
+    for label in _TITLE_OVERRIDES.values():
+        assert label in CATEGORIES
 
 
 def test_parse_label_from_structured_json():
