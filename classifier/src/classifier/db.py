@@ -50,16 +50,3 @@ def fetch_labeled_events(
         (start_iso, end_iso),
     ).fetchall()
     return [(row["captured_at"], row["label"]) for row in rows]
-
-
-def count_failed_polls(conn: sqlite3.Connection, start_iso: str, end_iso: str) -> int:
-    """How many polls failed in the window (each agent_status row is one failure).
-
-    The poller only writes agent_status on a failed poll, so this is a simple
-    proxy for monitoring gaps to surface in the report.
-    """
-    row = conn.execute(
-        "SELECT COUNT(*) AS n FROM agent_status WHERE checked_at >= ? AND checked_at < ?",
-        (start_iso, end_iso),
-    ).fetchone()
-    return row["n"] if row else 0

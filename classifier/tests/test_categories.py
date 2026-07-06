@@ -17,10 +17,17 @@ def test_label_for_title_is_case_insensitive_and_stripped():
     assert label_for_title("ROCKET LEAGUE (64-BIT, DX11, COOKED)") == "gaming"
 
 
-def test_label_for_title_returns_none_for_unknown_or_missing():
+def test_label_for_title_maps_bare_desktop_to_idle():
+    # The desktop shell and a missing/blank title both mean the bare desktop.
+    assert label_for_title("Program Manager") == "idle"
+    assert label_for_title("  program manager  ") == "idle"
+    assert label_for_title(None) == "idle"
+    assert label_for_title("") == "idle"
+
+
+def test_label_for_title_returns_none_for_ordinary_titles():
+    # An ordinary app title has no override and falls through to the model.
     assert label_for_title("Google Chrome") is None
-    assert label_for_title(None) is None
-    assert label_for_title("") is None
 
 
 def test_title_override_labels_are_valid_categories():
@@ -40,7 +47,7 @@ def test_parse_label_from_two_field_response():
 
 
 def test_parse_label_from_json_with_whitespace():
-    assert parse_label('  {"label":"unknown"}\n') == "unknown"
+    assert parse_label('  {"label":"idle"}\n') == "idle"
 
 
 def test_parse_label_rejects_unknown_json_label():

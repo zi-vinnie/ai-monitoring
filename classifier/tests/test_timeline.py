@@ -2,7 +2,6 @@ from zoneinfo import ZoneInfo
 
 from classifier.timeline import (
     MINUTES_PER_DAY,
-    active_span,
     build_timeline,
     format_clock,
 )
@@ -53,15 +52,8 @@ def test_last_block_clamps_to_end_of_day():
     assert blocks[0].end_minute == MINUTES_PER_DAY
 
 
-def test_empty_events_produce_no_blocks_or_span():
+def test_empty_events_produce_no_blocks():
     assert build_timeline([], UTC, interval_minutes=10) == []
-    assert active_span([]) is None
-
-
-def test_active_span_spans_first_to_last():
-    events = _events(("08:00", "productive"), ("22:00", "gaming"))
-    span = active_span(build_timeline(events, UTC, interval_minutes=10))
-    assert span == (8 * 60, 22 * 60 + 10)
 
 
 def test_format_clock():

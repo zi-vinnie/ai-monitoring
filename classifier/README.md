@@ -13,24 +13,27 @@ Neither loops internally; both are meant to run once a day by a systemd timer (c
 
 Every screenshot is labelled with exactly one of:
 
-`productive` · `gaming` · `video_entertainment` · `social_media` · `browsing` · `unknown`
+`productive` · `gaming` · `video_entertainment` · `social_media` · `browsing` · `idle`
+
+`idle` means the machine is on but nobody is actively using it — a bare desktop, lock/login screen, or blank frame — and is also the model's fallback when no activity can be identified. It's kept out of the report's headline screen-time and productive-share totals (see below).
 
 Because the agent only ever captures the monitor holding the focused window, there's one image in and one label out — no cross-monitor reconciliation.
 
 ## How `classify-screenshots` works
 
 1. Reads the day's `screenshots` rows where `label IS NULL` from the shared DB.
-2. For each, base64-encodes the PNG (downscaled to `OLLAMA_IMAGE_MAX_EDGE`) and sends it to Ollama's `/api/generate` with the focused window title as a hint and a structured-output `format`, at `temperature 0`. The JSON schema asks for a one-sentence `screen_content` description *before* a `label` constrained to the six categories — describing the screen first is a cheap reasoning step that helps the small vision model pick the right label.
-3. Writes the returned label back to the row.
+2. Checks a small hard-coded exact-title map (`label_for_title`, case-insensitive) first: known game clients (e.g. `Overwatch`, `Rocket League (64-bit, DX11, Cooked)`) short-circuit to `gaming`, and the bare desktop (the `Program Manager` shell or a null/empty title) to `idle` — skipping the image encode and Ollama call entirely.
+3. Otherwise base64-encodes the PNG (downscaled to `OLLAMA_IMAGE_MAX_EDGE`) and sends it to Ollama's `/api/generate` with the focused window title as a hint and a structured-output `format`, at `temperature 0`. The JSON schema asks for a one-sentence `screen_content` description *before* a `label` constrained to the six categories — describing the screen first is a cheap reasoning step that helps the small vision model pick the right label.
+4. Writes the resulting label back to the row.
 
 Per-image failures (Ollama down, model missing, timeout, a deleted image file, an unrecognisable response) are logged and skipped — the row stays unlabelled so a later run retries it, rather than aborting the batch.
 
 ## How `send-report` works
 
-1. Reads the day's labelled rows (with timestamps) and counts failed polls (from `agent_status`) for a "monitoring gaps" note.
+1. Reads the day's labelled rows (with timestamps) from the shared DB.
 2. Converts label counts to minutes (`count × POLL_INTERVAL_MINUTES` — each screenshot stands in for one poll interval of that activity).
-3. Renders a **day-timeline PNG** (matplotlib): a single bar spanning 00:00→24:00 in `REPORT_TZ`, coloured by activity at each time. Each screenshot owns the span until the next one (capped at one poll interval); consecutive same-category samples merge into one block, and missed polls leave the track blank (idle / machine off).
-4. Emails a plain-text + HTML summary with the timeline embedded inline (and attached), plus headline stats (screen time, productive share, active window) and a per-category breakdown table, to every address in `EMAIL_TO`, over SMTP.
+3. Renders a **day-timeline PNG** (matplotlib): a single bar spanning 00:00→24:00 in `REPORT_TZ`, coloured by activity at each time. Each screenshot owns the span until the next one (capped at one poll interval); consecutive same-category samples merge into one block. `idle` draws as a muted-grey block (machine on but unused); only a missed poll leaves the track blank (machine off / gap).
+4. Emails a plain-text + HTML summary with the timeline embedded inline (and attached), plus headline stats (screen time, productive share) and a per-category breakdown table, to every address in `EMAIL_TO`, over SMTP. Headline screen time and productive share count *active* minutes only — `idle` is excluded and shown as its own breakdown row with no share %.
 
 If nothing was labelled for the day, it sends a short "no activity recorded" notice instead (noting whether every poll failed).
 
@@ -78,7 +81,7 @@ cp .env.example .env
 | `OLLAMA_MODEL` | vision model name (default `minicpm-v4.6`) |
 | `OLLAMA_TIMEOUT` | per-image request timeout, seconds (default `120`) |
 | `OLLAMA_IMAGE_MAX_EDGE` | downscale each screenshot to this longest edge in px before sending, so large captures fit a small model's context window (default `1280`; `0` = full size) |
-| `POLL_INTERVAL_MINUTES` | minutes each screenshot represents — set to the server's poll interval (default `10`) |
+| `POLL_INTERVAL_MINUTES` | minutes each screenshot represents — set to the server's poll interval (default `5`) |
 | `REPORT_TZ` | IANA timezone defining "a day"; blank = server local time |
 | `SMTP_HOST` / `SMTP_PORT` | SMTP server (default port `587`) |
 | `SMTP_STARTTLS` | `true` (default) to upgrade the port-587 connection to TLS with STARTTLS |

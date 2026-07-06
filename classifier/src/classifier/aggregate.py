@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from classifier.categories import CATEGORIES
+from classifier.categories import CATEGORIES, IDLE
 
 
 @dataclass(frozen=True)
@@ -29,4 +29,15 @@ def summarize(labels: list[str], minutes_per_sample: float) -> list[CategorySumm
 
 
 def total_minutes(summaries: list[CategorySummary]) -> float:
+    """Minutes across every category, idle included — 'was anything recorded'."""
     return sum(summary.minutes for summary in summaries)
+
+
+def active_minutes(summaries: list[CategorySummary]) -> float:
+    """Minutes of active use — every category except idle.
+
+    Idle (bare desktop / lock screen) is machine-on-but-unused time, so it's
+    kept out of the headline screen-time total and the productive-share
+    denominator; it still appears as its own line in the breakdown.
+    """
+    return sum(summary.minutes for summary in summaries if summary.category != IDLE)

@@ -56,13 +56,6 @@ def build_timeline(
     return blocks
 
 
-def active_span(blocks: list[TimelineBlock]) -> tuple[float, float] | None:
-    """First-activity to last-activity minutes-of-day, or ``None`` if empty."""
-    if not blocks:
-        return None
-    return blocks[0].start_minute, blocks[-1].end_minute
-
-
 def format_clock(minute_of_day: float) -> str:
     """A minute-of-day as a 24-hour ``HH:MM`` clock label (``1440`` -> ``24:00``)."""
     total = int(round(minute_of_day))

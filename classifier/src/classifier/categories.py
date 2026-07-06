@@ -1,5 +1,9 @@
 import json
 
+# The label for "machine on but nobody actively using it" — bare desktop, lock
+# screen, blank frame. Excluded from active screen-time totals (see aggregate).
+IDLE = "idle"
+
 # The fixed activity taxonomy. One screenshot in, exactly one of these out.
 # Keep this in sync with the top-level CLAUDE.md and the `label` column values.
 CATEGORIES: tuple[str, ...] = (
@@ -8,7 +12,7 @@ CATEGORIES: tuple[str, ...] = (
     "video_entertainment",
     "social_media",
     "browsing",
-    "unknown",
+    IDLE,
 )
 
 _DESCRIPTIONS: dict[str, str] = {
@@ -46,31 +50,39 @@ _DESCRIPTIONS: dict[str, str] = {
     "when no browser is on screen, for a page still loading (label that by "
     "what its title names), or for a game, video, or social site in a browser "
     "— those keep their own category.",
-    "unknown": "LAST RESORT ONLY — the image shows no identifiable activity: a "
-    "blank or black screen, a lock or login screen, a boot screen, an empty "
-    "desktop with nothing open, or an image too unclear to read. Never use it "
-    "when you can identify any app, site, or activity.",
+    "idle": "the machine is on but nobody is actively using it: an empty "
+    "desktop or home screen with nothing open, a lock or login screen, a "
+    "screensaver, a boot screen, a blank or black screen, or an image too "
+    "unclear to identify any activity. Use this whenever no app, site, or "
+    "activity can be identified.",
 }
 
-# Exact window titles we can label without asking the vision model. These are
-# unambiguous game clients whose title never appears outside the game, so we
-# short-circuit straight to `gaming` and skip the Ollama call — cheaper, and it
-# also dodges the exclusive-fullscreen black/wallpaper frame problem entirely.
-# Match is case-insensitive on the stripped title. Keep values in CATEGORIES.
+# Exact window titles we can label without asking the vision model, because the
+# title alone is decisive. Match is case-insensitive on the stripped title.
+#   - Game clients whose title never appears outside the game -> gaming. This is
+#     cheaper (no Ollama call) and dodges the exclusive-fullscreen black/
+#     wallpaper frame problem entirely.
+#   - "Program Manager" is the Windows desktop shell (Progman): when it holds
+#     focus the user is on the bare desktop -> idle. A missing title (no focused
+#     window) is the same bare-desktop case, handled in label_for_title below.
+# Keep values in CATEGORIES.
 _TITLE_OVERRIDES: dict[str, str] = {
     "overwatch": "gaming",
     "rocket league (64-bit, dx11, cooked)": "gaming",
+    "program manager": IDLE,
 }
 
 
 def label_for_title(window_title: str | None) -> str | None:
     """Return a hard-coded label for a known window title, else None.
 
-    Lets the classifier skip the vision model for titles that map to exactly one
-    category with certainty. Returns None (fall through to the model) otherwise.
+    Lets the classifier skip the vision model when the title alone is decisive:
+    known game clients -> gaming, and the bare desktop (a missing title or the
+    "Program Manager" shell) -> idle. Returns None (fall through to the model)
+    for everything else.
     """
     if not window_title:
-        return None
+        return IDLE
     return _TITLE_OVERRIDES.get(window_title.strip().lower())
 
 
@@ -107,7 +119,7 @@ def build_prompt(window_title: str | None) -> str:
         "- A desktop wallpaper (a photo of nature, animals, or scenery behind "
         "desktop icons and the taskbar) is NOT a video and is never "
         "video_entertainment. A screen showing only the desktop is labeled by "
-        "the window title, or unknown if the title names nothing.",
+        "the window title, or idle if the title names nothing.",
         "- Fullscreen games often fail to appear in the capture, leaving only "
         "the desktop wallpaper or a black frame. If the window title names a "
         "game but the screen shows just the desktop or a blank screen, the "
@@ -124,7 +136,8 @@ def build_prompt(window_title: str | None) -> str:
         "- 'productive' is the default. If the activity is purposeful, or you "
         "are torn between productive and another category, choose productive. "
         "Pick a different category only when the screen is clearly that thing.",
-        "- Use unknown only when you cannot identify any activity at all.",
+        "- Use idle only when the screen shows no activity at all — a bare "
+        "desktop, a lock or login screen, or a blank screen.",
         "",
     ]
     if window_title:
@@ -141,8 +154,9 @@ def build_prompt(window_title: str | None) -> str:
         )
     else:
         lines.append(
-            "There is no focused-window title — the screen may be locked, idle, "
-            "or showing the desktop."
+            "There is no focused-window title — the machine is most likely idle: "
+            "locked, at a login screen, or showing the bare desktop. Prefer idle "
+            "unless the screen clearly shows an identifiable activity."
         )
     lines += [
         "",

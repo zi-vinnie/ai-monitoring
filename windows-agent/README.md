@@ -2,7 +2,7 @@
 
 The Windows-side component of the ai-monitoring parental screen-monitoring system.
 
-A FastAPI service on the monitored machine exposing one API-key-protected endpoint, `GET /screenshot`, which captures **only the monitor currently holding the focused window** and returns it as base64 PNG. The [server](../server) component polls it every 10–15 minutes.
+A FastAPI service on the monitored machine exposing one API-key-protected endpoint, `GET /screenshot`, which captures **only the monitor currently holding the focused window** and returns it as base64 PNG. The [server](../server) component polls it every 5 minutes.
 
 ## How it works
 

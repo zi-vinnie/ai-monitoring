@@ -68,7 +68,7 @@ def load_classify_config() -> ClassifyConfig:
 def load_report_config() -> ReportConfig:
     return ReportConfig(
         db_path=_db_path(),
-        poll_interval_minutes=float(os.environ.get("POLL_INTERVAL_MINUTES", "10")),
+        poll_interval_minutes=float(os.environ.get("POLL_INTERVAL_MINUTES", "5")),
         report_tz=os.environ.get("REPORT_TZ") or None,
         smtp_host=os.environ["SMTP_HOST"],
         smtp_port=int(os.environ.get("SMTP_PORT", "587")),

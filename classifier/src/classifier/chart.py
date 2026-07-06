@@ -12,15 +12,16 @@ from classifier.timeline import MINUTES_PER_DAY, TimelineBlock
 # Fixed category -> colour assignment. Per the data-viz method, categorical
 # hues are assigned in a fixed order and never by rank, so a category keeps its
 # colour regardless of where it lands on the timeline. Values are the validated
-# light-mode categorical palette; unknown is a muted grey so this last-resort
-# bucket reads as recessive next to real activity.
+# light-mode categorical palette; idle is a muted grey so machine-on-but-unused
+# time reads as recessive next to real activity (and distinct from the empty
+# track, which means machine-off / missed poll).
 _COLORS: dict[str, str] = {
     "productive": "#2a78d6",          # blue
     "gaming": "#1baf7a",              # aqua
     "video_entertainment": "#eda100", # yellow
     "social_media": "#008300",        # green
     "browsing": "#4a3aa7",      # violet
-    "unknown": "#898781",             # muted grey
+    "idle": "#898781",                # muted grey
 }
 _DISPLAY_NAMES: dict[str, str] = {
     "productive": "Productive",
@@ -28,7 +29,7 @@ _DISPLAY_NAMES: dict[str, str] = {
     "video_entertainment": "Video / streaming",
     "social_media": "Social media",
     "browsing": "Web browsing",
-    "unknown": "Unknown",
+    "idle": "Idle",
 }
 
 # Chrome + ink from the light reference surface.

@@ -25,8 +25,8 @@ def classify_one(config: ClassifyConfig, row: sqlite3.Row) -> str | None:
     """Label a single screenshot row, or None if it can't be classified."""
     override = label_for_title(row["window_title"])
     if override is not None:
-        # Known game client — the title is decisive, so skip the image encode
-        # and Ollama call entirely.
+        # The title alone is decisive (a known game client, or the bare desktop
+        # / no focused window -> idle), so skip the image encode and Ollama call.
         logger.info("id=%s -> %s via title override (window=%r)", row["id"], override, row["window_title"])
         return override
     file_path = Path(row["file_path"])

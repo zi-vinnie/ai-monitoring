@@ -12,14 +12,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 # Window titles that are pure noise: skip storing them entirely to save space.
-# These carry no activity signal and would only ever label as unknown:
-#   - "Windows Default Lock Screen": the machine is locked.
-#   - "Program Manager": the Windows desktop shell (Progman) has focus, i.e. the
-#     user is on the bare desktop / home screen with no app on top.
-# A null/empty title (no focused window) is the same bare-desktop case and is
-# skipped too. Note fullscreen games still report the game's own title here (see
-# CLAUDE.md's capture notes), so this never drops an active gaming frame.
-SKIP_WINDOW_TITLES = {"Windows Default Lock Screen", "Program Manager"}
+# The lock screen carries no activity signal and can't be reviewed later, so
+# there's nothing worth keeping. (The bare desktop — "Program Manager" or a null
+# title — IS stored and labelled `idle` by the classifier, so it still shows on
+# the timeline; only the lock screen is dropped outright.)
+SKIP_WINDOW_TITLES = {"Windows Default Lock Screen"}
 
 
 def _record_status(config: Config, status: str, detail: str) -> None:
@@ -34,7 +31,7 @@ def run() -> None:
     """Fetch the current screenshot from the Windows agent and save it.
 
     Single-shot entry point, meant to be invoked on a schedule (a systemd
-    timer) every 10-15 minutes rather than looping internally.
+    timer) every 5 minutes rather than looping internally.
     """
     config = load_config()
 
@@ -60,9 +57,9 @@ def run() -> None:
     monitor_index = payload["monitor_index"]
     window_title = payload.get("window_title")
 
-    if not window_title or window_title in SKIP_WINDOW_TITLES:
-        # Don't waste storage/DB rows on the lock screen or bare desktop.
-        logger.info("Skipping screenshot for window %r (no-activity screen)", window_title)
+    if window_title in SKIP_WINDOW_TITLES:
+        # Don't waste storage/DB rows on the lock screen.
+        logger.info("Skipping screenshot for window %r (in skip list)", window_title)
         return
 
     image_bytes = base64.b64decode(payload["png_base64"])
