@@ -4,11 +4,12 @@ import logging
 from datetime import date
 
 from classifier.aggregate import CategorySummary, summarize, total_minutes
-from classifier.chart import format_duration, render_chart
+from classifier.chart import format_duration, render_timeline
 from classifier.config import ReportConfig, load_report_config
-from classifier.db import count_failed_polls, fetch_labels, get_connection
+from classifier.db import count_failed_polls, fetch_labeled_events, get_connection
 from classifier.emailer import chart_cid, send_email
 from classifier.timeframe import day_bounds_utc, parse_date, resolve_tz
+from classifier.timeline import TimelineBlock, active_span, build_timeline, format_clock
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -32,10 +33,29 @@ def _ranked(summaries: list[CategorySummary]) -> list[CategorySummary]:
     return sorted((s for s in summaries if s.minutes > 0), key=lambda s: s.minutes, reverse=True)
 
 
+def _productive_minutes(summaries: list[CategorySummary]) -> float:
+    return next((s.minutes for s in summaries if s.category == "productive"), 0.0)
+
+
+def _span_label(blocks: list[TimelineBlock]) -> str | None:
+    span = active_span(blocks)
+    return f"{format_clock(span[0])} – {format_clock(span[1])}" if span else None
+
+
 def build_text_body(
-    summaries: list[CategorySummary], total: float, day_label: str, failed_polls: int
+    summaries: list[CategorySummary],
+    total: float,
+    day_label: str,
+    failed_polls: int,
+    blocks: list[TimelineBlock],
 ) -> str:
-    lines = [f"Screen-time summary — {day_label}", f"Total tracked: {format_duration(total)}", ""]
+    lines = [f"Screen-time summary — {day_label}", ""]
+    lines.append(f"Screen time:    {format_duration(total)}")
+    lines.append(f"Productive:     {_share(_productive_minutes(summaries), total)} of screen time")
+    span = _span_label(blocks)
+    if span:
+        lines.append(f"Active window:  {span}")
+    lines += ["", "By activity:"]
     for summary in _ranked(summaries):
         name = _DISPLAY_NAMES[summary.category]
         lines.append(f"  {name:<20} {format_duration(summary.minutes):>8}   {_share(summary.minutes, total):>4}")
@@ -45,8 +65,32 @@ def build_text_body(
     return "\n".join(lines)
 
 
+def _stat_tiles(summaries: list[CategorySummary], total: float, blocks: list[TimelineBlock]) -> str:
+    """A small row of headline numbers: screen time, productive share, active window."""
+    tiles = [
+        ("Screen time", format_duration(total)),
+        ("Productive", _share(_productive_minutes(summaries), total)),
+    ]
+    span = _span_label(blocks)
+    if span:
+        tiles.append(("Active window", span))
+    cells = "".join(
+        '<td style="padding:0 24px 0 0;vertical-align:top;">'
+        f'<div style="color:#898781;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">{html.escape(caption)}</div>'
+        f'<div style="color:#0b0b0b;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;">{html.escape(value)}</div>'
+        "</td>"
+        for caption, value in tiles
+    )
+    return f'<table style="border-collapse:collapse;margin:0 0 18px;"><tr>{cells}</tr></table>'
+
+
 def build_html_body(
-    summaries: list[CategorySummary], total: float, day_label: str, failed_polls: int, cid: str
+    summaries: list[CategorySummary],
+    total: float,
+    day_label: str,
+    failed_polls: int,
+    blocks: list[TimelineBlock],
+    cid: str,
 ) -> str:
     rows = "".join(
         f'<tr><td style="padding:4px 16px 4px 0;">{html.escape(_DISPLAY_NAMES[s.category])}</td>'
@@ -63,11 +107,11 @@ def build_html_body(
         else ""
     )
     return (
-        '<div style="font-family:system-ui,-apple-system,\'Segoe UI\',sans-serif;color:#0b0b0b;max-width:640px;">'
+        '<div style="font-family:system-ui,-apple-system,\'Segoe UI\',sans-serif;color:#0b0b0b;max-width:720px;">'
         f'<h2 style="margin:0 0 4px;">Screen-time summary</h2>'
-        f'<p style="margin:0 0 16px;color:#52514e;">{html.escape(day_label)} · total tracked '
-        f"<strong>{format_duration(total)}</strong></p>"
-        f'<img src="cid:{cid}" alt="Screen time by activity" style="max-width:100%;height:auto;margin-bottom:16px;">'
+        f'<p style="margin:0 0 16px;color:#52514e;">{html.escape(day_label)}</p>'
+        f'<img src="cid:{cid}" alt="Activity through the day" style="max-width:100%;height:auto;margin-bottom:18px;">'
+        f"{_stat_tiles(summaries, total, blocks)}"
         f'<table style="border-collapse:collapse;font-size:14px;">{rows}</table>'
         f"{note}"
         '<p style="color:#898781;font-size:12px;margin-top:16px;">'
@@ -114,12 +158,12 @@ def run(argv: list[str] | None = None) -> None:
 
     conn = get_connection(config.db_path)
     try:
-        labels = fetch_labels(conn, start_iso, end_iso)
+        events = fetch_labeled_events(conn, start_iso, end_iso)
         failed_polls = count_failed_polls(conn, start_iso, end_iso)
     finally:
         conn.close()
 
-    summaries = summarize(labels, config.poll_interval_minutes)
+    summaries = summarize([label for _, label in events], config.poll_interval_minutes)
     total = total_minutes(summaries)
 
     if total <= 0:
@@ -128,9 +172,10 @@ def run(argv: list[str] | None = None) -> None:
         _send(config, day, text_body, html_body, None)
         return
 
-    image_png = render_chart(summaries, day_label)
-    text_body = build_text_body(summaries, total, day_label, failed_polls)
-    html_body = build_html_body(summaries, total, day_label, failed_polls, chart_cid())
+    blocks = build_timeline(events, tz, config.poll_interval_minutes)
+    image_png = render_timeline(blocks, day_label)
+    text_body = build_text_body(summaries, total, day_label, failed_polls, blocks)
+    html_body = build_html_body(summaries, total, day_label, failed_polls, blocks, chart_cid())
     _send(config, day, text_body, html_body, image_png)
 
 

@@ -5,7 +5,7 @@ The daily analysis + reporting component of the ai-monitoring parental screen-mo
 It has two scheduled, single-shot entry points that share the SQLite database the [server](../server) writes:
 
 1. **`classify-screenshots`** — labels the day's screenshots with a local [Ollama](https://ollama.com) vision model.
-2. **`send-report`** — aggregates the day's labels into time-per-category, renders a chart, and emails a summary.
+2. **`send-report`** — renders the day as an activity timeline, aggregates time-per-category, and emails a summary.
 
 Neither loops internally; both are meant to run once a day by a systemd timer (classify first, then report).
 
@@ -27,10 +27,10 @@ Per-image failures (Ollama down, model missing, timeout, a deleted image file, a
 
 ## How `send-report` works
 
-1. Reads the day's labelled rows and counts failed polls (from `agent_status`) for a "monitoring gaps" note.
+1. Reads the day's labelled rows (with timestamps) and counts failed polls (from `agent_status`) for a "monitoring gaps" note.
 2. Converts label counts to minutes (`count × POLL_INTERVAL_MINUTES` — each screenshot stands in for one poll interval of that activity).
-3. Renders a horizontal bar chart (PNG, via matplotlib) of time-per-category.
-4. Emails a plain-text + HTML summary with the chart embedded inline (and attached) to every address in `EMAIL_TO`, over SMTP.
+3. Renders a **day-timeline PNG** (matplotlib): a single bar spanning 00:00→24:00 in `REPORT_TZ`, coloured by activity at each time. Each screenshot owns the span until the next one (capped at one poll interval); consecutive same-category samples merge into one block, and missed polls leave the track blank (idle / machine off).
+4. Emails a plain-text + HTML summary with the timeline embedded inline (and attached), plus headline stats (screen time, productive share, active window) and a per-category breakdown table, to every address in `EMAIL_TO`, over SMTP.
 
 If nothing was labelled for the day, it sends a short "no activity recorded" notice instead (noting whether every poll failed).
 
@@ -198,7 +198,8 @@ classifier/
     ollama_client.py  # calls Ollama's /api/generate with the image
     classify.py       # classify-screenshots entry point
     aggregate.py      # labels -> time-per-category (pure)
-    chart.py          # renders the time-per-category bar chart PNG
+    timeline.py       # ordered samples -> merged day-timeline blocks (pure)
+    chart.py          # renders the day-timeline PNG
     emailer.py        # builds + sends the multipart email
     report.py         # send-report entry point
   tests/

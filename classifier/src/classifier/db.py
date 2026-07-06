@@ -34,14 +34,22 @@ def set_label(conn: sqlite3.Connection, screenshot_id: int, label: str) -> None:
     conn.commit()
 
 
-def fetch_labels(conn: sqlite3.Connection, start_iso: str, end_iso: str) -> list[str]:
-    """All non-null labels in the day's window, for aggregation."""
+def fetch_labeled_events(
+    conn: sqlite3.Connection, start_iso: str, end_iso: str
+) -> list[tuple[str, str]]:
+    """``(captured_at, label)`` pairs in the day's window, ordered by time.
+
+    Ordered by ``captured_at`` so the report can lay them out on a day timeline
+    and merge consecutive same-category samples into blocks. ``captured_at`` is a
+    UTC ISO-8601 string; the caller converts it to the local report timezone.
+    """
     rows = conn.execute(
-        "SELECT label FROM screenshots "
-        "WHERE label IS NOT NULL AND captured_at >= ? AND captured_at < ?",
+        "SELECT captured_at, label FROM screenshots "
+        "WHERE label IS NOT NULL AND captured_at >= ? AND captured_at < ? "
+        "ORDER BY captured_at",
         (start_iso, end_iso),
     ).fetchall()
-    return [row["label"] for row in rows]
+    return [(row["captured_at"], row["label"]) for row in rows]
 
 
 def count_failed_polls(conn: sqlite3.Connection, start_iso: str, end_iso: str) -> int:
