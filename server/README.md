@@ -2,7 +2,7 @@
 
 The Ubuntu-side component of the ai-monitoring parental screen-monitoring system.
 
-`poll-screenshots` is a single-shot script, run every 5 minutes by a systemd timer (it does not loop internally). Each run:
+`poll-screenshots` is a single-shot script, run every 10 minutes by a systemd timer (it does not loop internally). Each run:
 
 1. Sends `GET /screenshot` to the [windows-agent](../windows-agent) (`AGENT_URL`), authenticated with `X-API-Key: AGENT_API_KEY`.
 2. Decodes the returned base64 PNG (a capture of whichever monitor holds the focused window).
@@ -69,10 +69,10 @@ ExecStart=/path/to/uv run poll-screenshots
 
 ```ini
 [Unit]
-Description=Run poll-screenshots every 5 minutes
+Description=Run poll-screenshots every 10 minutes
 
 [Timer]
-OnCalendar=*:0/5
+OnCalendar=*:0/10
 Persistent=true
 
 [Install]

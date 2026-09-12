@@ -31,7 +31,7 @@ def run() -> None:
     """Fetch the current screenshot from the Windows agent and save it.
 
     Single-shot entry point, meant to be invoked on a schedule (a systemd
-    timer) every 5 minutes rather than looping internally.
+    timer) every 10 minutes rather than looping internally.
     """
     config = load_config()
 

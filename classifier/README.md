@@ -81,7 +81,7 @@ cp .env.example .env
 | `OLLAMA_MODEL` | vision model name (default `minicpm-v4.6`) |
 | `OLLAMA_TIMEOUT` | per-image request timeout, seconds (default `120`) |
 | `OLLAMA_IMAGE_MAX_EDGE` | downscale each screenshot to this longest edge in px before sending, so large captures fit a small model's context window (default `1280`; `0` = full size) |
-| `POLL_INTERVAL_MINUTES` | minutes each screenshot represents — set to the server's poll interval (default `5`) |
+| `POLL_INTERVAL_MINUTES` | minutes each screenshot represents — set to the server's poll interval (default `10`) |
 | `REPORT_TZ` | IANA timezone defining "a day"; blank = server local time |
 | `SMTP_HOST` / `SMTP_PORT` | SMTP server (default port `587`) |
 | `SMTP_STARTTLS` | `true` (default) to upgrade the port-587 connection to TLS with STARTTLS |
