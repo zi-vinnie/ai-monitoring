@@ -11,6 +11,12 @@ dependencies = [
 
 [project.scripts]
 poll-screenshots = "server.poll:run"
+cleanup-screenshots = "server.cleanup:run"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.11.26,<0.12.0"]

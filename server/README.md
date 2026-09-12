@@ -13,7 +13,7 @@ If the poll fails, it logs the reason and records a row in the `agent_status` ta
 
 Classification is not done here — the separate [classifier](../classifier) component reads the saved rows later and fills in the `label` column. The exact `/screenshot` response shape is documented in the top-level [CLAUDE.md](../CLAUDE.md#windows-agent-screenshot-contract); if that contract changes, `src/server/fetch.py` and `src/server/poll.py` must change with it.
 
-Image retention (auto-deleting old screenshots while keeping labels) is not yet implemented.
+`cleanup-screenshots` is a second single-shot script, run once a day, that enforces image retention: it deletes every `SCREENSHOT_DIR/<YYYY-MM-DD>/` day directory older than `RETENTION_DAYS` (default 7, today counts as day 1) so only the last week of PNGs is kept on disk. The `screenshots` rows and their labels stay in SQLite indefinitely, so historical reports and stats are unaffected — only the image bytes go. `--dry-run` lists what would be removed without deleting anything.
 
 ## Setup
 
@@ -31,6 +31,7 @@ AGENT_URL=http://192.168.1.50:8000   # the Windows agent's address
 AGENT_API_KEY=changeme               # must match the agent's API key
 SCREENSHOT_DIR=data/screenshots      # where PNGs are saved
 DB_PATH=data/metadata.sqlite3        # SQLite metadata db
+RETENTION_DAYS=7                     # days of PNGs to keep; older day dirs are deleted
 ```
 
 `SCREENSHOT_DIR` and `DB_PATH` are created on first run. Relative paths are resolved against the `.env` file's directory, not the current working directory, so scheduled runs land data in the same place regardless of where they're invoked from.
@@ -42,6 +43,11 @@ uv run poll-screenshots
 ```
 
 Fetches one screenshot, saves it, writes one row. Logs go to stderr.
+
+```bash
+uv run cleanup-screenshots --dry-run   # show which day directories would go
+uv run cleanup-screenshots             # delete them
+```
 
 ### Scheduling
 
@@ -75,6 +81,36 @@ WantedBy=timers.target
 
 ```bash
 sudo systemctl enable --now poll-screenshots.timer
+```
+
+Retention cleanup gets its own pair. `/etc/systemd/system/cleanup-screenshots.service`:
+
+```ini
+[Unit]
+Description=Delete screenshots older than RETENTION_DAYS
+
+[Service]
+Type=oneshot
+WorkingDirectory=/path/to/ai-monitoring/server
+ExecStart=/path/to/uv run cleanup-screenshots
+```
+
+`/etc/systemd/system/cleanup-screenshots.timer` (04:00 daily, after the classifier's ~03:00 run has labelled yesterday's images):
+
+```ini
+[Unit]
+Description=Run cleanup-screenshots daily
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl enable --now cleanup-screenshots.timer
 ```
 
 Check on it with `systemctl list-timers poll-screenshots.timer` and `journalctl -u poll-screenshots`.
@@ -112,6 +148,8 @@ server/
     fetch.py    # calls the windows-agent /screenshot endpoint
     db.py       # SQLite schema + insert helpers
     poll.py     # poll-screenshots entry point
+    cleanup.py  # cleanup-screenshots entry point (image retention)
+  tests/        # pytest (uv run pytest)
 ```
 
 ## Security

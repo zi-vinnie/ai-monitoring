@@ -24,6 +24,7 @@ class Config:
     agent_api_key: str
     screenshot_dir: Path
     db_path: Path
+    retention_days: int
 
 
 def load_config() -> Config:
@@ -32,4 +33,5 @@ def load_config() -> Config:
         agent_api_key=os.environ["AGENT_API_KEY"],
         screenshot_dir=_resolve_path(os.environ.get("SCREENSHOT_DIR", "data/screenshots")),
         db_path=_resolve_path(os.environ.get("DB_PATH", "data/metadata.sqlite3")),
+        retention_days=int(os.environ.get("RETENTION_DAYS", "7")),
     )
