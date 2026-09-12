@@ -70,6 +70,8 @@ _TITLE_OVERRIDES: dict[str, str] = {
     "overwatch": "gaming",
     "rocket league (64-bit, dx11, cooked)": "gaming",
     "program manager": IDLE,
+    "kour.io | fps io game - play kour io online! - google chrome": "gaming",
+    "veck.io | fps io game - play veck io online - google chrome": "gaming",
 }
 
 
