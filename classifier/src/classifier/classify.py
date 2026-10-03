@@ -8,6 +8,7 @@ import requests
 from classifier.categories import (
     LABEL_FORMAT,
     build_prompt,
+    correct_label,
     label_for_title,
     parse_label,
 )
@@ -47,7 +48,8 @@ def classify_one(config: ClassifyConfig, row: sqlite3.Row) -> str | None:
     label = parse_label(raw)
     if label is None:
         logger.warning("Unrecognized model output for id=%s: %r", row["id"], raw)
-    return label
+        return None
+    return correct_label(row["window_title"], label)
 
 
 def run(argv: list[str] | None = None) -> None:

@@ -117,6 +117,7 @@ uv run send-report                              # email today's summary
 
 uv run classify-screenshots --date yesterday    # the previous day (for morning schedules)
 uv run send-report --date 2026-07-02            # or an explicit day
+uv run send-report --start 2026-09-28 --end 2026-10-02  # one summary email for a range of days
 ```
 
 `--date` accepts `YYYY-MM-DD`, `today`, or `yesterday`, interpreted in `REPORT_TZ`.

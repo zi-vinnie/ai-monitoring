@@ -86,3 +86,37 @@ def test_build_prompt_includes_window_title_hint():
 def test_build_prompt_handles_missing_title():
     prompt = build_prompt(None)
     assert "no focused-window title" in prompt
+
+
+def test_label_for_title_matches_new_exact_titles():
+    assert label_for_title("Bloons TD Battles 2") == "gaming"
+    assert label_for_title("Watch_Dogs 2") == "gaming"
+    assert label_for_title("Car Soccer - Google Chrome") == "gaming"
+    assert label_for_title("LockingWindow") == "idle"
+
+
+def test_label_for_title_patterns_catch_social_apps():
+    assert label_for_title("Futer millionaire - Discord") == "social_media"
+    assert label_for_title("(1) Instagram - Google Chrome") == "social_media"
+    assert label_for_title("Instagram - Google Chrome") == "social_media"
+    assert label_for_title("Snapchat - Google Chrome") == "social_media"
+    assert label_for_title("WhatsApp") == "social_media"
+    assert label_for_title("Group video call") == "social_media"
+    assert label_for_title("Voice call") == "social_media"
+    assert label_for_title("TinyDiggz is typing... - Google Chrome") == "social_media"
+    assert label_for_title("OmeTV Video Chat — Omegle Random Cam Chat Alternative 2026 - Google Chrome") == "social_media"
+    assert label_for_title("Monkey: Random Video Chat | Talk to Strangers Instantly - Google Chrome") == "social_media"
+
+
+def test_label_for_title_patterns_skip_video_pages():
+    # A YouTube video *about* Omegle is a video, so it goes to the model.
+    assert label_for_title("chad and stacy go on omegle (nobody could handle it) - YouTube - Google Chrome") is None
+    assert label_for_title("Untitled document - Google Docs - Google Chrome") is None
+
+
+def test_correct_label_turns_gaming_video_into_video_entertainment():
+    from classifier.categories import correct_label
+
+    assert correct_label("Aim Bot In KOUR.IO? - YouTube - Google Chrome", "gaming") == "video_entertainment"
+    assert correct_label("Aim Bot In KOUR.IO? - YouTube - Google Chrome", "productive") == "productive"
+    assert correct_label("Rocket League (64-bit, DX11, Cooked)", "gaming") == "gaming"

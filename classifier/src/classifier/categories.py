@@ -1,4 +1,5 @@
 import json
+import re
 
 # The label for "machine on but nobody actively using it" — bare desktop, lock
 # screen, blank frame. Excluded from active screen-time totals (see aggregate).
@@ -21,7 +22,8 @@ _DESCRIPTIONS: dict[str, str] = {
     "documentation); writing, note-taking, spreadsheets, documents, PDFs, or "
     "presentations; research and learning (Wikipedia, online courses, tutorials, "
     "homework); trading or investing (price charts, TradingView, MetaTrader, a "
-    "brokerage or banking site); email, calendars, video calls, or meetings; job "
+    "brokerage or banking site); email, calendars, or school or work meetings "
+    "(Zoom, Teams, Google Meet); job "
     "or college applications; using an AI assistant (ChatGPT, Claude, Copilot); "
     "creative tools (photo, video, audio, or design editors); system settings, "
     "installing or updating software, and file management (File Explorer); and "
@@ -37,12 +39,15 @@ _DESCRIPTIONS: dict[str, str] = {
     "video_entertainment": "watching video for fun. Includes: YouTube, Netflix, "
     "Disney+, Prime Video, Hulu, or any streaming site; Twitch or other live "
     "streams; movies, TV shows, music videos, gameplay or streamer videos; a "
-    "local video player (VLC, Media Player). Educational, how-to, coding, or "
-    "finance videos do NOT belong here — label those productive.",
+    "local video player (VLC, Media Player). Videos about games (gameplay, "
+    "game tutorials or tips, game news) belong here. Educational, how-to, "
+    "coding, or finance videos do NOT belong here — label those productive.",
     "social_media": "social feeds and messaging. Includes: Instagram, TikTok, "
     "Snapchat, X/Twitter, Facebook, Reddit, Discord, WhatsApp, Telegram, "
     "Messenger; scrolling a feed, viewing posts, stories, shorts, or reels; "
-    "chatting, group chats, or direct messages.",
+    "chatting, group chats, or direct messages; voice or video calls with "
+    "friends (WhatsApp, Discord, Snapchat, FaceTime); and random video-chat "
+    "sites that pair you with strangers (Omegle, OmeTV, Monkey).",
     "browsing": "web browsing that fits none of the above. Use ONLY when the "
     "main window is a web browser showing an ordinary, fully loaded web page: "
     "shopping (Amazon, eBay), news, sports scores, meme or humour sites, "
@@ -70,22 +75,70 @@ _TITLE_OVERRIDES: dict[str, str] = {
     "overwatch": "gaming",
     "rocket league (64-bit, dx11, cooked)": "gaming",
     "program manager": IDLE,
+    "lockingwindow": IDLE,  # the Windows lock screen
+    "bloons td battles 2": "gaming",
+    "watch_dogs 2": "gaming",
+    "car soccer - google chrome": "gaming",
     "kour.io | fps io game - play kour io online! - google chrome": "gaming",
     "veck.io | fps io game - play veck io online - google chrome": "gaming",
 }
+
+
+# Random video-chat sites that pair the user with strangers, by title prefix.
+# Shared with flags.py, which calls these out by name in the report.
+STRANGER_CHAT_SITE = r"^(omegle|ometv|monkey: random video chat|chatroulette)\b"
+
+# A YouTube/TikTok video page — someone else's footage, whatever it's about.
+VIDEO_PAGE = re.compile(r" - youtube - | \| tiktok - ", re.IGNORECASE)
+
+# Title patterns the title alone settles, for apps whose titles vary (a chat
+# name, an unread count) so an exact match can't catch them. Checked in order
+# after the exact map; searched case-insensitively. Video pages are excluded
+# first (see VIDEO_PAGE) so e.g. a YouTube video *about* Omegle isn't caught.
+_TITLE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(pattern, re.IGNORECASE), label)
+    for pattern, label in (
+        (r" - discord$", "social_media"),
+        (r"^(\(\d+\) )?(instagram|snapchat)\b", "social_media"),
+        (r"^whatsapp$", "social_media"),
+        (r"^(group )?(video|voice) call$", "social_media"),
+        (r" is typing\.\.\.", "social_media"),
+        (STRANGER_CHAT_SITE, "social_media"),
+    )
+)
 
 
 def label_for_title(window_title: str | None) -> str | None:
     """Return a hard-coded label for a known window title, else None.
 
     Lets the classifier skip the vision model when the title alone is decisive:
-    known game clients -> gaming, and the bare desktop (a missing title or the
-    "Program Manager" shell) -> idle. Returns None (fall through to the model)
-    for everything else.
+    known game clients -> gaming, chat and social apps -> social_media, and the
+    bare desktop (a missing title, the "Program Manager" shell, or the lock
+    screen) -> idle. Returns None (fall through to the model) for everything
+    else.
     """
     if not window_title:
         return IDLE
-    return _TITLE_OVERRIDES.get(window_title.strip().lower())
+    title = window_title.strip()
+    exact = _TITLE_OVERRIDES.get(title.lower())
+    if exact is not None or VIDEO_PAGE.search(title):
+        return exact
+    for pattern, label in _TITLE_PATTERNS:
+        if pattern.search(title):
+            return label
+    return None
+
+
+def correct_label(window_title: str | None, label: str) -> str:
+    """Overrule a model label the window title contradicts.
+
+    A YouTube/TikTok video page is someone else's footage, never the user
+    playing, so the small model's habit of calling gameplay videos "gaming"
+    is corrected to video_entertainment.
+    """
+    if label == "gaming" and window_title and VIDEO_PAGE.search(window_title):
+        return "video_entertainment"
+    return label
 
 
 # JSON-schema for Ollama's structured-output `format`. `screen_content` comes
@@ -134,7 +187,11 @@ def build_prompt(window_title: str | None) -> str:
         "by what the window title says is opening (a game loading is gaming, "
         "a video site loading is video_entertainment), not as browsing.",
         "- For any video: educational, how-to, coding, or finance content is "
-        "productive; entertainment content is video_entertainment.",
+        "productive; entertainment content is video_entertainment. A video "
+        "about a game — including a tutorial or tips for a game — is "
+        "video_entertainment, not productive and not gaming.",
+        "- A call or chat with friends (WhatsApp, Discord, Snapchat, Instagram) "
+        "is social_media, not productive.",
         "- 'productive' is the default. If the activity is purposeful, or you "
         "are torn between productive and another category, choose productive. "
         "Pick a different category only when the screen is clearly that thing.",

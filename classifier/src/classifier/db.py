@@ -50,3 +50,20 @@ def fetch_labeled_events(
         (start_iso, end_iso),
     ).fetchall()
     return [(row["captured_at"], row["label"]) for row in rows]
+
+
+def fetch_flag_candidates(
+    conn: sqlite3.Connection, start_iso: str, end_iso: str
+) -> list[tuple[str, str | None]]:
+    """Ordered ``(captured_at, window_title)`` for every screenshot in the window.
+
+    Feeds the report's "worth a look" section, which flags by title — so it
+    doesn't depend on a row having been labelled yet.
+    """
+    rows = conn.execute(
+        "SELECT captured_at, window_title FROM screenshots "
+        "WHERE captured_at >= ? AND captured_at < ? "
+        "ORDER BY captured_at",
+        (start_iso, end_iso),
+    ).fetchall()
+    return [(row["captured_at"], row["window_title"]) for row in rows]

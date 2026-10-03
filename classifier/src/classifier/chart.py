@@ -19,7 +19,7 @@ _COLORS: dict[str, str] = {
     "productive": "#2a78d6",          # blue
     "gaming": "#1baf7a",              # aqua
     "video_entertainment": "#eda100", # yellow
-    "social_media": "#008300",        # green
+    "social_media": "#d55181",        # pink (distinct from gaming aqua)
     "browsing": "#4a3aa7",      # violet
     "idle": "#898781",                # muted grey
 }
@@ -110,6 +110,70 @@ def render_timeline(blocks: list[TimelineBlock], day_label: str) -> bytes:
                 loc="upper center",
                 bbox_to_anchor=(0.5, -0.28),
                 ncol=min(len(handles), 4),
+                frameon=False,
+                fontsize=10,
+                handlelength=1.1,
+                handleheight=1.1,
+                columnspacing=1.6,
+                labelcolor=_PRIMARY,
+            )
+
+        buffer = io.BytesIO()
+        fig.savefig(buffer, format="png", facecolor=_SURFACE, bbox_inches="tight")
+        plt.close(fig)
+        return buffer.getvalue()
+
+
+def render_range_timeline(days: list[tuple[str, list[TimelineBlock]]], title: str) -> bytes:
+    """Render several days as stacked 00:00->24:00 tracks and return PNG bytes.
+
+    One row per ``(row_label, blocks)`` pair, top to bottom in the order given,
+    using the same per-category hues as the single-day timeline. A day with no
+    blocks is a bare track marked "no data" (PC off or offline).
+    """
+    present = [category for category in _COLORS if any(b.category == category for _, blocks in days for b in blocks)]
+    rows = len(days)
+
+    with plt.rc_context({"font.family": _FONT, "font.size": 11}):
+        fig, ax = plt.subplots(figsize=(9, 1.2 + 0.42 * rows), dpi=150)
+        fig.patch.set_facecolor(_SURFACE)
+        ax.set_facecolor(_SURFACE)
+
+        for row, (_, blocks) in enumerate(days):
+            y = rows - 1 - row  # first day on top
+            ax.broken_barh([(0, MINUTES_PER_DAY)], (y + 0.15, 0.7), facecolors=_TRACK, zorder=2)
+            if not blocks:
+                ax.text(MINUTES_PER_DAY / 2, y + 0.5, "no data", ha="center", va="center", color=_MUTED, fontsize=9, zorder=5)
+            for category in present:
+                spans = [(b.start_minute, b.duration) for b in blocks if b.category == category]
+                if spans:
+                    ax.broken_barh(spans, (y + 0.15, 0.7), facecolors=_COLORS[category], zorder=3)
+
+        ax.set_xlim(0, MINUTES_PER_DAY)
+        ax.set_ylim(0, rows)
+        ax.set_yticks([rows - 1 - row + 0.5 for row in range(rows)])
+        ax.set_yticklabels([label for label, _ in days], color=_PRIMARY)
+        ax.set_xticks(range(0, MINUTES_PER_DAY + 1, 3 * 60))
+        ax.set_xticklabels([f"{hour:02d}:00" for hour in range(0, 25, 3)])
+        ax.set_xticks(range(0, MINUTES_PER_DAY + 1, 60), minor=True)
+        ax.grid(axis="x", which="minor", color=_GRID, linewidth=0.6, zorder=4, alpha=0.6)
+        ax.grid(axis="x", which="major", color=_GRID, linewidth=1, zorder=4)
+        ax.set_axisbelow(False)
+
+        ax.set_title(title, color=_PRIMARY, fontsize=14, fontweight="bold", loc="left", pad=14)
+        ax.tick_params(colors=_MUTED, length=0)
+        ax.tick_params(axis="y", labelcolor=_PRIMARY)
+        for spine_name, spine in ax.spines.items():
+            spine.set_visible(spine_name == "bottom")
+            spine.set_color(_GRID)
+
+        if present:
+            handles = [Patch(facecolor=_COLORS[category], label=_DISPLAY_NAMES[category]) for category in present]
+            ax.legend(
+                handles=handles,
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.6 / rows - 0.06),
+                ncol=min(len(handles), 3),
                 frameon=False,
                 fontsize=10,
                 handlelength=1.1,
