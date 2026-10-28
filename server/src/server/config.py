@@ -25,8 +25,8 @@ class Config:
     screenshot_dir: Path
     db_path: Path
     retention_days: int
-    # Optional URL to GET after each successful poll (an Uptime Kuma push
-    # monitor), so a dashboard can alert when screenshots stop arriving.
+    # Optional URL to GET each time the agent answers (an Uptime Kuma push
+    # monitor), so a dashboard can alert when the agent stops answering.
     heartbeat_url: str | None = None
 
 

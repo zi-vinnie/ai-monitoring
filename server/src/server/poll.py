@@ -10,6 +10,9 @@ from server.fetch import fetch_screenshot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
+# urllib3 logs each request line at DEBUG, which would put the heartbeat's
+# push token in the journal if the root level were ever lowered.
+logging.getLogger("urllib3").setLevel(logging.INFO)
 
 # Window titles that are pure noise: skip storing them entirely to save space.
 # The lock screen carries no activity signal and can't be reviewed later, so
@@ -33,8 +36,10 @@ def _send_heartbeat(config: Config) -> None:
         return
     try:
         requests.get(config.heartbeat_url, timeout=10).raise_for_status()
-    except requests.exceptions.RequestException as exc:
-        # The URL holds the push token, so log only the exception type.
+    except Exception as exc:
+        # Broad on purpose: a malformed URL can raise urllib3 errors that
+        # aren't RequestExceptions. The URL holds the push token, so log only
+        # the exception type.
         logger.warning("Heartbeat failed: %s", type(exc).__name__)
 
 
