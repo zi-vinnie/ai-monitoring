@@ -25,6 +25,9 @@ class Config:
     screenshot_dir: Path
     db_path: Path
     retention_days: int
+    # Optional URL to GET each time the agent answers (an Uptime Kuma push
+    # monitor), so a dashboard can alert when the agent stops answering.
+    heartbeat_url: str | None = None
 
 
 def load_config() -> Config:
@@ -34,4 +37,5 @@ def load_config() -> Config:
         screenshot_dir=_resolve_path(os.environ.get("SCREENSHOT_DIR", "data/screenshots")),
         db_path=_resolve_path(os.environ.get("DB_PATH", "data/metadata.sqlite3")),
         retention_days=int(os.environ.get("RETENTION_DAYS", "7")),
+        heartbeat_url=os.environ.get("HEARTBEAT_URL") or None,
     )

@@ -10,6 +10,9 @@ from server.fetch import fetch_screenshot
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
+# urllib3 logs each request line at DEBUG, which would put the heartbeat's
+# push token in the journal if the root level were ever lowered.
+logging.getLogger("urllib3").setLevel(logging.INFO)
 
 # Window titles that are pure noise: skip storing them entirely to save space.
 # The lock screen carries no activity signal and can't be reviewed later, so
@@ -25,6 +28,19 @@ def _record_status(config: Config, status: str, detail: str) -> None:
         insert_agent_status(conn, datetime.now(timezone.utc).isoformat(), status, detail)
     finally:
         conn.close()
+
+
+def _send_heartbeat(config: Config) -> None:
+    """Tell the health dashboard the agent answered. Never fails the poll."""
+    if not config.heartbeat_url:
+        return
+    try:
+        requests.get(config.heartbeat_url, timeout=10).raise_for_status()
+    except Exception as exc:
+        # Broad on purpose: a malformed URL can raise urllib3 errors that
+        # aren't RequestExceptions. The URL holds the push token, so log only
+        # the exception type.
+        logger.warning("Heartbeat failed: %s", type(exc).__name__)
 
 
 def run() -> None:
@@ -59,7 +75,9 @@ def run() -> None:
 
     if window_title in SKIP_WINDOW_TITLES:
         # Don't waste storage/DB rows on the lock screen.
+        # The agent still answered, so this counts as a healthy poll.
         logger.info("Skipping screenshot for window %r (in skip list)", window_title)
+        _send_heartbeat(config)
         return
 
     image_bytes = base64.b64decode(payload["png_base64"])
@@ -75,6 +93,8 @@ def run() -> None:
         logger.info("Saved %s (window=%r)", file_path, window_title)
     finally:
         conn.close()
+
+    _send_heartbeat(config)
 
 
 if __name__ == "__main__":

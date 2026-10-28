@@ -32,9 +32,12 @@ AGENT_API_KEY=changeme               # must match the agent's API key
 SCREENSHOT_DIR=data/screenshots      # where PNGs are saved
 DB_PATH=data/metadata.sqlite3        # SQLite metadata db
 RETENTION_DAYS=7                     # days of PNGs to keep; older day dirs are deleted
+HEARTBEAT_URL=                       # optional; GET each time the agent answers
 ```
 
 `SCREENSHOT_DIR` and `DB_PATH` are created on first run. Relative paths are resolved against the `.env` file's directory, not the current working directory, so scheduled runs land data in the same place regardless of where they're invoked from.
+
+`HEARTBEAT_URL` is optional. When set, `poll-screenshots` sends a GET to it each time the agent answers (a saved screenshot or a skipped lock screen), and sends nothing when the agent is unreachable or returns an error. Point it at an [Uptime Kuma](https://github.com/louislam/uptime-kuma) push monitor so the dashboard alerts when the agent stops answering. A green monitor means the agent answered, not that a screenshot was saved: a machine left on the lock screen still sends heartbeats but stores nothing. A failed heartbeat logs only the error type and never fails the poll. The URL contains the push token, so keep it in `.env` only.
 
 ## Running
 
@@ -154,5 +157,5 @@ server/
 
 ## Security
 
-- `AGENT_API_KEY` authenticates to the Windows agent — keep `.env` out of version control (already gitignored) and never log its value.
+- `AGENT_API_KEY` authenticates to the Windows agent — keep `.env` out of version control (already gitignored) and never log its value. The same applies to `HEARTBEAT_URL`, which contains the push token.
 - Intended strictly for authorized monitoring of a household device you own or administer. See the top-level [CLAUDE.md](../CLAUDE.md#security) for the full policy.
