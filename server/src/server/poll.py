@@ -27,6 +27,17 @@ def _record_status(config: Config, status: str, detail: str) -> None:
         conn.close()
 
 
+def _send_heartbeat(config: Config) -> None:
+    """Tell the health dashboard the agent answered. Never fails the poll."""
+    if not config.heartbeat_url:
+        return
+    try:
+        requests.get(config.heartbeat_url, timeout=10).raise_for_status()
+    except requests.exceptions.RequestException as exc:
+        # The URL holds the push token, so log only the exception type.
+        logger.warning("Heartbeat failed: %s", type(exc).__name__)
+
+
 def run() -> None:
     """Fetch the current screenshot from the Windows agent and save it.
 
@@ -59,7 +70,9 @@ def run() -> None:
 
     if window_title in SKIP_WINDOW_TITLES:
         # Don't waste storage/DB rows on the lock screen.
+        # The agent still answered, so this counts as a healthy poll.
         logger.info("Skipping screenshot for window %r (in skip list)", window_title)
+        _send_heartbeat(config)
         return
 
     image_bytes = base64.b64decode(payload["png_base64"])
@@ -75,6 +88,8 @@ def run() -> None:
         logger.info("Saved %s (window=%r)", file_path, window_title)
     finally:
         conn.close()
+
+    _send_heartbeat(config)
 
 
 if __name__ == "__main__":
